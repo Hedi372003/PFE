@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Robot {
+  id        String  @id @default(cuid()) @db.Text
+  name      String  @db.Text
+  robotId   String  @unique @map("robot_id") @db.Text
+  latitude  Float
+  longitude Float
+  status    String  @default("offline") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
+  users     User[]
+
+  @@map("robots")
+}
+
+model User {
+  id              String   @id @default(cuid()) @db.Text
+  name            String   @db.Text
+  email           String   @unique @db.Text
+  password        String   @db.Text
+  role            String   @default("operator") @db.Text
+  robotAssignedId String?  @map("robot_assigned_id") @db.Text
+  robotAssigned   Robot?   @relation(fields: [robotAssignedId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @default(now()) @map("updated_at")
+
+  @@map("users")
+}

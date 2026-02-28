@@ -1,12 +1,15 @@
 require("dotenv").config();
-const mongoose = require("mongoose");
-const app = require("./src/app"); // Importe la config de app.js
+const app = require("./src/app");
+const prisma = require("./src/config/prisma");
 
 const PORT = process.env.PORT || 5000;
 
-mongoose.connect(process.env.MONGO_URI)
+prisma.$connect()
   .then(() => {
-    console.log("✅ MongoDB connected");
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    console.log("PostgreSQL connected");
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
-  .catch(err => console.error("❌ MongoDB connection error:", err));
+  .catch((err) => {
+    console.error("PostgreSQL connection error:", err);
+    process.exit(1);
+  });

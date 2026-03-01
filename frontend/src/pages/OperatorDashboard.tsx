@@ -1,10 +1,18 @@
-export default function OperatorDashboard({ onLogout, user }) {
+import type { AuthUser } from "@/types/auth";
+
+interface OperatorDashboardProps {
+  onLogout: () => void;
+  user: AuthUser;
+}
+
+const OperatorDashboard: React.FC<OperatorDashboardProps> = ({
+  onLogout,
+  user,
+}) => {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="bg-white shadow-xl p-8 rounded-xl">
-        <h2 className="text-2xl font-bold mb-4">
-          Operator Dashboard
-        </h2>
+        <h2 className="text-2xl font-bold mb-4">Operator Dashboard</h2>
 
         <p>Welcome {user?.name}</p>
 
@@ -17,4 +25,6 @@ export default function OperatorDashboard({ onLogout, user }) {
       </div>
     </div>
   );
-}
+};
+
+export default OperatorDashboard;

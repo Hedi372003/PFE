@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { AxiosError } from "axios";
 import { Plus, Pencil, Trash2, Users, Search, Bot, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppLayout } from "@/components/layout/AppLayout";
+import api from "@/api/axios";
 import type { AuthUser } from "@/types/auth";
 
 type DashboardUser = {
-  id: number;
+  id: string;
   firstName: string;
   lastName: string;
   email: string;
-  robotId: string;
+  phone: string;
+  robotId: string | null;
 };
 
-type ToastType = "success" | "info";
+type ToastType = "success" | "info" | "error";
 
 type ToastItem = {
   id: number;
@@ -23,36 +26,20 @@ type ToastItem = {
   type: ToastType;
 };
 
-const initialUsers: DashboardUser[] = [
-  {
-    id: 1,
-    firstName: "Alice",
-    lastName: "Martin",
-    email: "alice@company.com",
-    robotId: "R-001",
-  },
-  {
-    id: 2,
-    firstName: "Bob",
-    lastName: "Chen",
-    email: "bob@company.com",
-    robotId: "R-002",
-  },
-  {
-    id: 3,
-    firstName: "Clara",
-    lastName: "Dubois",
-    email: "clara@company.com",
-    robotId: "R-003",
-  },
-  {
-    id: 4,
-    firstName: "Daniel",
-    lastName: "Smith",
-    email: "daniel@company.com",
-    robotId: "R-004",
-  },
-];
+interface ApiErrorResponse {
+  message?: string;
+}
+
+interface UsersResponseItem {
+  id?: string;
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  email: string;
+  phone?: string;
+  robotId?: string | null;
+}
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -72,9 +59,7 @@ const CountUp: React.FC<CountUpProps> = ({ value, durationMs = 700 }) => {
     let start = 0;
 
     const step = (timestamp: number) => {
-      if (!start) {
-        start = timestamp;
-      }
+      if (!start) start = timestamp;
       const progress = Math.min((timestamp - start) / durationMs, 1);
       setDisplay(Math.round(progress * value));
       if (progress < 1) {
@@ -89,10 +74,25 @@ const CountUp: React.FC<CountUpProps> = ({ value, durationMs = 700 }) => {
   return <>{display}</>;
 };
 
+const mapApiUser = (u: UsersResponseItem): DashboardUser => {
+  const fullName = u.name?.trim() || "";
+  const [fallbackFirstName, ...rest] = fullName.split(" ");
+  return {
+    id: u.id || u._id || "",
+    firstName: u.firstName || fallbackFirstName || "",
+    lastName: u.lastName || rest.join(" "),
+    email: u.email,
+    phone: u.phone || "",
+    robotId: u.robotId ?? null,
+  };
+};
+
 const AdminDashboard: React.FC<AdminDashboardProps> = () => {
-  const [users, setUsers] = useState<DashboardUser[]>(initialUsers);
+  const [users, setUsers] = useState<DashboardUser[]>([]);
   const [search, setSearch] = useState<string>("");
+  const [loadingUsers, setLoadingUsers] = useState<boolean>(true);
   const [userToDelete, setUserToDelete] = useState<DashboardUser | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const location = useLocation();
 
@@ -104,33 +104,59 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     }, 2400);
   };
 
+  const loadUsers = async (): Promise<void> => {
+    setLoadingUsers(true);
+    try {
+      const { data } = await api.get<UsersResponseItem[]>("/api/users");
+      setUsers((Array.isArray(data) ? data : []).map(mapApiUser));
+    } catch (err: unknown) {
+      if (err instanceof AxiosError) {
+        const apiMessage = (err.response?.data as ApiErrorResponse | undefined)?.message;
+        addToast(apiMessage || "Failed to load users.", "error");
+      } else {
+        addToast("Failed to load users.", "error");
+      }
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get("created") === "1") {
-      addToast("User created successfully.", "success");
-    }
-    if (params.get("updated") === "1") {
-      addToast("User updated successfully.", "success");
-    }
+    if (params.get("created") === "1") addToast("User created successfully.", "success");
+    if (params.get("updated") === "1") addToast("User updated successfully.", "success");
   }, [location.search]);
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) {
-      return users;
-    }
+    if (!term) return users;
     return users.filter((u) =>
       `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(term)
     );
   }, [users, search]);
 
-  const handleDeleteConfirm = () => {
-    if (!userToDelete) {
-      return;
+  const handleDeleteConfirm = async (): Promise<void> => {
+    if (!userToDelete) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/api/users/${userToDelete.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+      addToast(`${userToDelete.firstName} ${userToDelete.lastName} deleted.`, "success");
+      setUserToDelete(null);
+    } catch (err: unknown) {
+      if (err instanceof AxiosError) {
+        const apiMessage = (err.response?.data as ApiErrorResponse | undefined)?.message;
+        addToast(apiMessage || "Failed to delete user.", "error");
+      } else {
+        addToast("Failed to delete user.", "error");
+      }
+    } finally {
+      setDeleting(false);
     }
-    setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
-    addToast(`${userToDelete.firstName} ${userToDelete.lastName} deleted.`, "success");
-    setUserToDelete(null);
   };
 
   const buttonHoverClass =
@@ -148,10 +174,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               from this control panel.
             </p>
           </div>
-          <Link
-            to="/users/add"
-            onClick={() => addToast("User created successfully.", "success")}
-          >
+          <Link to="/users/add">
             <Button className={`${buttonHoverClass} gap-2`}>
               <Plus className={`h-4 w-4 ${iconHoverClass}`} />
               Add User
@@ -162,7 +185,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {[
             { label: "Total Users", value: users.length, icon: Users },
-            { label: "Active Robots", value: 3, icon: Bot },
+            { label: "Active Robots", value: users.filter((u) => Boolean(u.robotId)).length, icon: Bot },
             { label: "Alerts", value: 2, icon: Bell },
           ].map((s, i) => (
             <motion.div
@@ -188,9 +211,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearch(e.target.value)
-              }
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
               placeholder="Search by name or email..."
               className="pl-9"
               aria-label="Search users"
@@ -203,18 +224,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40">
-                  <th className="px-5 py-3 text-left font-semibold text-muted-foreground">
-                    Name
-                  </th>
-                  <th className="px-5 py-3 text-left font-semibold text-muted-foreground">
-                    Email
-                  </th>
-                  <th className="px-5 py-3 text-left font-semibold text-muted-foreground">
-                    Robot ID
-                  </th>
-                  <th className="px-5 py-3 text-right font-semibold text-muted-foreground">
-                    Actions
-                  </th>
+                  <th className="px-5 py-3 text-left font-semibold text-muted-foreground">Name</th>
+                  <th className="px-5 py-3 text-left font-semibold text-muted-foreground">Email</th>
+                  <th className="px-5 py-3 text-left font-semibold text-muted-foreground">Robot ID</th>
+                  <th className="px-5 py-3 text-right font-semibold text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,30 +241,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                       transition={{ delay: index * 0.03, duration: 0.2 }}
                       className="border-b last:border-0 transition-colors duration-200 hover:bg-muted/40"
                     >
-                      <td className="px-5 py-3.5 font-medium text-foreground">
-                        {u.firstName} {u.lastName}
-                      </td>
+                      <td className="px-5 py-3.5 font-medium text-foreground">{u.firstName} {u.lastName}</td>
                       <td className="px-5 py-3.5 text-muted-foreground">{u.email}</td>
                       <td className="px-5 py-3.5">
-                        <span className="rounded bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                          {u.robotId}
-                        </span>
+                        {u.robotId ? (
+                          <span className="rounded bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                            {u.robotId}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Unassigned</span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex justify-end gap-2">
-                          <Link
-                            to={`/users/edit/${u.id}`}
-                            onClick={() => addToast("User updated successfully.", "success")}
-                          >
+                          <Link to={`/users/edit/${u.id}`}>
                             <Button
                               variant="ghost"
                               size="sm"
                               className={`${buttonHoverClass} h-8 w-8 p-0`}
                               aria-label={`Edit ${u.firstName} ${u.lastName}`}
                             >
-                              <Pencil
-                                className={`h-4 w-4 text-muted-foreground ${iconHoverClass}`}
-                              />
+                              <Pencil className={`h-4 w-4 text-muted-foreground ${iconHoverClass}`} />
                             </Button>
                           </Link>
                           <Button
@@ -268,13 +278,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     </motion.tr>
                   ))}
                 </AnimatePresence>
-                {filteredUsers.length === 0 && (
+                {!loadingUsers && filteredUsers.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={4}
-                      className="px-5 py-10 text-center text-sm text-muted-foreground"
-                    >
+                    <td colSpan={4} className="px-5 py-10 text-center text-sm text-muted-foreground">
                       No users found.
+                    </td>
+                  </tr>
+                )}
+                {loadingUsers && (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-10 text-center text-sm text-muted-foreground">
+                      Loading users...
                     </td>
                   </tr>
                 )}
@@ -285,25 +299,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       </div>
 
       <AnimatePresence>
-                {userToDelete && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+        {userToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-xl p-6 shadow-2xl w-80"
+              className="w-80 rounded-xl bg-white p-6 shadow-2xl"
             >
-              <h3 className="font-semibold text-lg mb-2">
-                Confirm Delete
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4">
+              <h3 className="mb-2 text-lg font-semibold">Confirm Delete</h3>
+              <p className="mb-4 text-sm text-muted-foreground">
                 Are you sure you want to delete this user?
               </p>
               <div className="flex justify-end gap-3">
-                <Button variant="ghost" onClick={() => setUserToDelete(null)}>
+                <Button variant="ghost" onClick={() => setUserToDelete(null)} disabled={deleting}>
                   Cancel
                 </Button>
-                <Button variant="destructive" onClick={handleDeleteConfirm}>
-                  Delete
+                <Button variant="destructive" onClick={() => void handleDeleteConfirm()} disabled={deleting}>
+                  {deleting ? "Deleting..." : "Delete"}
                 </Button>
               </div>
             </motion.div>
@@ -323,7 +335,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               className={`pointer-events-auto rounded-lg border p-3 text-sm shadow-lg ${
                 toast.type === "success"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-sky-200 bg-sky-50 text-sky-800"
+                  : toast.type === "error"
+                    ? "border-rose-200 bg-rose-50 text-rose-800"
+                    : "border-sky-200 bg-sky-50 text-sky-800"
               }`}
             >
               {toast.message}

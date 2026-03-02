@@ -69,11 +69,12 @@ const AddUser: React.FC = () => {
     setLoading(true);
     try {
       await api.post("/api/users", {
-        name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
         password: form.password,
-        robotAssigned: form.robotId.trim() || null,
+        robotId: form.robotId.trim() || null,
       });
 
       setSuccess("User created successfully.");

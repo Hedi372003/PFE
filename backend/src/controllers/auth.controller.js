@@ -2,26 +2,43 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
 
-const validRoles = new Set(["admin", "operator"]);
+const validRoles = new Set(["admin", "user", "operator"]);
+
+const parseName = (name) => {
+  const parts = String(name || "").trim().split(/\s+/);
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
+};
 
 const toUserPayload = (user) => ({
   _id: user.id,
   id: user.id,
-  name: user.name,
+  name: `${user.firstName} ${user.lastName}`.trim(),
+  firstName: user.firstName,
+  lastName: user.lastName,
   email: user.email,
   role: user.role,
 });
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { firstName, lastName, name, email, phone, password, role } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "name, email and password are required" });
+    const parsed = parseName(name);
+    const normalizedFirstName = String(firstName || parsed.firstName || "").trim();
+    const normalizedLastName = String(lastName || parsed.lastName || "").trim();
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedPhone = String(phone || "").trim() || "N/A";
+
+    if (!normalizedFirstName || !normalizedLastName || !normalizedEmail || !password) {
+      return res.status(400).json({
+        message: "firstName, lastName, email and password are required",
+      });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedRole = validRoles.has(role) ? role : "operator";
+    const normalizedRole = validRoles.has(role) ? role : "user";
 
     const existingUser = await prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -36,10 +53,13 @@ exports.register = async (req, res) => {
 
     await prisma.user.create({
       data: {
-        name,
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName,
         email: normalizedEmail,
+        phone: normalizedPhone,
         password: hashedPassword,
         role: normalizedRole,
+        isActive: true,
       },
     });
 
@@ -62,14 +82,16 @@ exports.login = async (req, res) => {
       where: { email: normalizedEmail },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         password: true,
         role: true,
+        isActive: true,
       },
     });
 
-    if (!user) {
+    if (!user || !user.isActive) {
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -95,11 +117,12 @@ exports.login = async (req, res) => {
 
 exports.me = async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+    const user = await prisma.user.findFirst({
+      where: { id: req.user.id, isActive: true },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         role: true,
       },

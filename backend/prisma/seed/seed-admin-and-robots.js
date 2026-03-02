@@ -32,17 +32,23 @@ async function seedAdmin(defaultRobotId) {
   const admin = await prisma.user.upsert({
     where: { email: adminEmail.toLowerCase() },
     update: {
-      name: "System Admin",
+      firstName: "System",
+      lastName: "Admin",
+      phone: "+0000000000",
       role: "admin",
       password: passwordHash,
-      robotAssignedId: defaultRobotId || null,
+      robotId: defaultRobotId || null,
+      isActive: true,
     },
     create: {
-      name: "System Admin",
+      firstName: "System",
+      lastName: "Admin",
       email: adminEmail.toLowerCase(),
+      phone: "+0000000000",
       password: passwordHash,
       role: "admin",
-      robotAssignedId: defaultRobotId || null,
+      robotId: defaultRobotId || null,
+      isActive: true,
     },
   });
 

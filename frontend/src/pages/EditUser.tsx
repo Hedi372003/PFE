@@ -15,12 +15,12 @@ interface EditUserParams {
 interface UserApiResponse {
   id?: string;
   _id?: string;
-  name: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
   email: string;
-  robotAssigned?: {
-    id?: string;
-    robotId?: string;
-  } | null;
+  phone?: string;
+  robotId?: string | null;
 }
 
 interface EditUserFormState {
@@ -70,17 +70,17 @@ const EditUser: React.FC = () => {
       setError("");
       try {
         const { data } = await api.get<UserApiResponse>(`/api/users/${userId}`);
-        const fullName = data.name?.trim() || "";
-        const [firstName, ...rest] = fullName.split(" ");
-        const lastName = rest.join(" ");
+        const fallbackName = data.name?.trim() || "";
+        const [fallbackFirstName, ...fallbackRest] = fallbackName.split(" ");
+        const fallbackLastName = fallbackRest.join(" ");
 
         setForm({
-          firstName: firstName || "",
-          lastName: lastName || "",
+          firstName: data.firstName || fallbackFirstName || "",
+          lastName: data.lastName || fallbackLastName || "",
           email: data.email || "",
-          phone: "",
+          phone: data.phone || "",
           password: "",
-          robotId: data.robotAssigned?.robotId || "",
+          robotId: data.robotId || "",
         });
       } catch (err: unknown) {
         if (err instanceof AxiosError) {
@@ -108,8 +108,9 @@ const EditUser: React.FC = () => {
 
     try {
       const payload: Record<string, string | null> = {
-        name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
-        robotAssigned: form.robotId.trim() || null,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        robotId: form.robotId.trim() || null,
         phone: form.phone.trim(),
       };
 

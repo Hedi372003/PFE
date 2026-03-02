@@ -1,4 +1,3 @@
--- CreateTable
 CREATE TABLE "robots" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -12,7 +11,6 @@ CREATE TABLE "robots" (
     CONSTRAINT "robots_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,

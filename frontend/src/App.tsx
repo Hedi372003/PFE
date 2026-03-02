@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -7,6 +13,11 @@ import OperatorDashboard from "./pages/OperatorDashboard";
 import AddUser from "./pages/AddUser";
 import EditUser from "./pages/EditUser";
 import type { AuthUser } from "./types/auth";
+
+const DashboardRedirect: React.FC = () => {
+  const location = useLocation();
+  return <Navigate to={`/admin${location.search}`} replace />;
+};
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -95,7 +106,7 @@ const App: React.FC = () => {
           path="/dashboard"
           element={
             user?.role === "admin" ? (
-              <Navigate to="/admin" replace />
+              <DashboardRedirect />
             ) : (
               <Navigate to="/login" replace />
             )

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AxiosError } from "axios";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -17,11 +17,24 @@ interface AddUserFormState {
   robotId: string;
 }
 
+interface PrefilledFromRequest {
+  requestId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+interface LocationState {
+  fromRequest?: PrefilledFromRequest;
+}
+
 interface ApiErrorResponse {
   message?: string;
 }
 
-const initialForm: AddUserFormState = {
+const emptyForm: AddUserFormState = {
   firstName: "",
   lastName: "",
   email: "",
@@ -32,15 +45,26 @@ const initialForm: AddUserFormState = {
 
 const AddUser: React.FC = () => {
   const navigate = useNavigate();
-  const [form, setForm] = useState<AddUserFormState>(initialForm);
+  const location = useLocation();
+  const state = (location.state as LocationState | null) || null;
+
+  const prefilled = useMemo(() => state?.fromRequest || null, [state]);
+  const [form, setForm] = useState<AddUserFormState>({
+    ...emptyForm,
+    ...(prefilled
+      ? {
+          firstName: prefilled.firstName,
+          lastName: prefilled.lastName,
+          email: prefilled.email,
+          phone: prefilled.phone,
+          password: prefilled.password,
+        }
+      : {}),
+  });
   const [error, setError] = useState<string>("");
-  const [success, setSuccess] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
 
-  const setField = <K extends keyof AddUserFormState>(
-    key: K,
-    value: AddUserFormState[K]
-  ) => {
+  const setField = <K extends keyof AddUserFormState>(key: K, value: AddUserFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -53,12 +77,17 @@ const AddUser: React.FC = () => {
     return null;
   };
 
-  const handleSubmit = async (
-    e: React.FormEvent<HTMLFormElement>
-  ): Promise<void> => {
+  const getApiError = (err: unknown, fallback: string): string => {
+    if (err instanceof AxiosError) {
+      const apiMessage = (err.response?.data as ApiErrorResponse | undefined)?.message;
+      return apiMessage || fallback;
+    }
+    return fallback;
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setError("");
-    setSuccess("");
 
     const validationError = validate();
     if (validationError) {
@@ -77,18 +106,18 @@ const AddUser: React.FC = () => {
         robotId: form.robotId.trim() || null,
       });
 
-      setSuccess("User created successfully.");
-      window.setTimeout(() => {
-        navigate("/dashboard?created=1", { replace: true });
-      }, 700);
-    } catch (err: unknown) {
-      if (err instanceof AxiosError) {
-        const apiMessage = (err.response?.data as ApiErrorResponse | undefined)
-          ?.message;
-        setError(apiMessage || "Failed to create user.");
-      } else {
-        setError("Failed to create user.");
+      if (prefilled?.requestId) {
+        await api.put(`/api/requests/${prefilled.requestId}/approve`);
       }
+
+      navigate("/users", {
+        replace: true,
+        state: {
+          toast: "User created successfully.",
+        },
+      });
+    } catch (err: unknown) {
+      setError(getApiError(err, "Failed to create user."));
     } finally {
       setLoading(false);
     }
@@ -102,20 +131,21 @@ const AddUser: React.FC = () => {
         transition={{ duration: 0.25 }}
         className="mx-auto max-w-2xl"
       >
-        <h1 className="mb-2 text-2xl font-bold text-foreground">Add User</h1>
+        <div className="mb-2 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground">Add User</h1>
+          {prefilled && (
+            <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+              From request
+            </span>
+          )}
+        </div>
         <p className="mb-6 text-sm text-muted-foreground">
-          Create a new user account, assign contact details, and optionally link
-          a robot for operations.
+          Create a new user account, assign contact details, and optionally link a robot for operations.
         </p>
 
         {error && (
           <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {success}
           </div>
         )}
 
@@ -126,9 +156,7 @@ const AddUser: React.FC = () => {
               <Input
                 id="firstName"
                 value={form.firstName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setField("firstName", e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("firstName", e.target.value)}
                 required
               />
             </div>
@@ -138,9 +166,7 @@ const AddUser: React.FC = () => {
               <Input
                 id="lastName"
                 value={form.lastName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setField("lastName", e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("lastName", e.target.value)}
                 required
               />
             </div>
@@ -151,9 +177,7 @@ const AddUser: React.FC = () => {
                 id="email"
                 type="email"
                 value={form.email}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setField("email", e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("email", e.target.value)}
                 required
               />
             </div>
@@ -163,9 +187,7 @@ const AddUser: React.FC = () => {
               <Input
                 id="phone"
                 value={form.phone}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setField("phone", e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("phone", e.target.value)}
                 required
               />
             </div>
@@ -176,9 +198,7 @@ const AddUser: React.FC = () => {
                 id="password"
                 type="password"
                 value={form.password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setField("password", e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("password", e.target.value)}
                 required
               />
             </div>
@@ -188,9 +208,7 @@ const AddUser: React.FC = () => {
               <Input
                 id="robotId"
                 value={form.robotId}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setField("robotId", e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("robotId", e.target.value)}
               />
             </div>
 

@@ -1,33 +1,56 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AxiosError } from "axios";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/api/axios";
+
+interface ApiErrorResponse {
+  message?: string;
+}
 
 const AddRobot: React.FC = () => {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [robotId, setRobotId] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const trimmedName = name.trim();
+    const trimmedRobotId = robotId.trim();
+
+    if (!trimmedName || !trimmedRobotId) {
+      setError("Robot name and robot ID are required.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
 
     try {
       await api.post("/api/robots", {
-        name,
-        robotId,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
+        name: trimmedName,
+        robotId: trimmedRobotId,
         status: "offline",
       });
 
-      navigate("/robots");
-    } catch (err) {
-      console.error("Failed to create robot", err);
+      navigate("/robots", {
+        replace: true,
+        state: { toast: "Robot created successfully." },
+      });
+    } catch (err: unknown) {
+      if (err instanceof AxiosError) {
+        const apiMessage = (err.response?.data as ApiErrorResponse | undefined)?.message;
+        setError(apiMessage || "Failed to add robot.");
+      } else {
+        setError("Failed to add robot.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -35,6 +58,9 @@ const AddRobot: React.FC = () => {
     <AppLayout>
       <div className="max-w-xl mx-auto space-y-6">
         <h1 className="text-2xl font-bold">Add Robot</h1>
+        {error && (
+          <p className="text-sm text-destructive">{error}</p>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -51,23 +77,9 @@ const AddRobot: React.FC = () => {
             required
           />
 
-          <Input
-            type="number"
-            placeholder="Latitude"
-            value={latitude}
-            onChange={(e) => setLatitude(e.target.value)}
-            required
-          />
-
-          <Input
-            type="number"
-            placeholder="Longitude"
-            value={longitude}
-            onChange={(e) => setLongitude(e.target.value)}
-            required
-          />
-
-          <Button type="submit">Create Robot</Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? "Creating..." : "Create Robot"}
+          </Button>
         </form>
       </div>
     </AppLayout>

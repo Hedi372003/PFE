@@ -16,21 +16,16 @@ import EditUser from "./pages/EditUser";
 import RobotControl from "./pages/RobotControl";
 import UsersPage from "./pages/UsersPage";
 import RobotsPage from "./pages/RobotsPage";
-import AddRobot from "./pages/AddRobot"; // ⚠️ IMPORTANT
+import AddRobot from "./pages/AddRobot";
+import Requests from "./pages/Requests";
 
 import type { AuthUser } from "./types/auth";
 
-/* =============================
-   Redirect component
-============================= */
 const DashboardRedirect: React.FC = () => {
   const location = useLocation();
   return <Navigate to={`/admin${location.search}`} replace />;
 };
 
-/* =============================
-   Protected Route Wrapper
-============================= */
 const ProtectedRoute = ({
   user,
   children,
@@ -42,9 +37,6 @@ const ProtectedRoute = ({
   return children;
 };
 
-/* =============================
-   Admin Only Route
-============================= */
 const AdminRoute = ({
   user,
   children,
@@ -52,21 +44,14 @@ const AdminRoute = ({
   user: AuthUser | null;
   children: JSX.Element;
 }) => {
-  if (!user || user.role !== "admin")
-    return <Navigate to="/login" replace />;
+  if (!user || user.role !== "admin") return <Navigate to="/login" replace />;
   return children;
 };
 
-/* =============================
-   Main App Component
-============================= */
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  /* =============================
-     Check Auth On App Load
-  ============================= */
   useEffect(() => {
     const checkAuth = async (): Promise<void> => {
       const token = localStorage.getItem("token");
@@ -99,9 +84,6 @@ const App: React.FC = () => {
     void checkAuth();
   }, []);
 
-  /* =============================
-     Handlers
-  ============================= */
   const handleLogin = (loggedUser: AuthUser): void => {
     setUser(loggedUser);
   };
@@ -112,9 +94,6 @@ const App: React.FC = () => {
     setUser(null);
   };
 
-  /* =============================
-     Loading Screen
-  ============================= */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -123,16 +102,11 @@ const App: React.FC = () => {
     );
   }
 
-  /* =============================
-     Routes
-  ============================= */
   return (
     <BrowserRouter>
       <Routes>
-        {/* Home */}
         <Route path="/" element={<Home />} />
 
-        {/* Login */}
         <Route
           path="/login"
           element={
@@ -146,8 +120,6 @@ const App: React.FC = () => {
             )
           }
         />
-
-        {/* ================= ADMIN ROUTES ================= */}
 
         <Route
           path="/admin"
@@ -185,7 +157,6 @@ const App: React.FC = () => {
           }
         />
 
-        {/* Robots list */}
         <Route
           path="/robots"
           element={
@@ -195,7 +166,6 @@ const App: React.FC = () => {
           }
         />
 
-        {/* Add Robot ✅ */}
         <Route
           path="/robots/add"
           element={
@@ -205,7 +175,14 @@ const App: React.FC = () => {
           }
         />
 
-        {/* ================= SHARED ROUTES ================= */}
+        <Route
+          path="/requests"
+          element={
+            <AdminRoute user={user}>
+              <Requests />
+            </AdminRoute>
+          }
+        />
 
         <Route
           path="/robot-control"
@@ -216,23 +193,17 @@ const App: React.FC = () => {
           }
         />
 
-        {/* ================= OPERATOR ROUTES ================= */}
-
         <Route
           path="/operator"
           element={
             user && user.role !== "admin" ? (
-              <OperatorDashboard
-                onLogout={handleLogout}
-                user={user}
-              />
+              <OperatorDashboard onLogout={handleLogout} user={user} />
             ) : (
               <Navigate to="/login" replace />
             )
           }
         />
 
-        {/* Dashboard redirect */}
         <Route
           path="/dashboard"
           element={
@@ -244,7 +215,6 @@ const App: React.FC = () => {
           }
         />
 
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

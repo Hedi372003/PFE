@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Bot, Wifi, Video, Shield, MapPin, Mail, Phone, X, Send, CalendarCheck, Eye, EyeOff, Loader2 } from "lucide-react";
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Wifi, Video, Shield, MapPin, Mail, Phone, X, Send, CalendarCheck } from "lucide-react";
+import api from "@/api/axios";
 
 const features = [
   {
@@ -31,27 +32,69 @@ const features = [
   },
 ];
 
+interface ReserveFormState {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  password: string;
+  message: string;
+}
+
+const initialReserveForm: ReserveFormState = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  password: "",
+  message: "",
+};
+
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const [showReserveForm, setShowReserveForm] = useState(false);
-  const [reserveForm, setReserveForm] = useState({ name: "", email: "", phone: "", robotModel: "", message: "" });
-  const [reserveSent, setReserveSent] = useState(false);
+  const [reserveForm, setReserveForm] = useState<ReserveFormState>(initialReserveForm);
+  const [reserveLoading, setReserveLoading] = useState(false);
+  const [reserveError, setReserveError] = useState("");
+  const [reserveToast, setReserveToast] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleReserveSubmit = (e: React.FormEvent) => {
+  const closeReserveModal = () => {
+    setShowReserveForm(false);
+    setReserveError("");
+    setShowPassword(false);
+  };
+
+  const handleReserveSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setReserveSent(true);
-    setTimeout(() => {
-      setShowReserveForm(false);
-      setReserveSent(false);
-      setReserveForm({ name: "", email: "", phone: "", robotModel: "", message: "" });
-    }, 2000);
+    setReserveLoading(true);
+    setReserveError("");
+
+    try {
+      await api.post("/api/requests", {
+        firstName: reserveForm.firstName.trim(),
+        lastName: reserveForm.lastName.trim(),
+        email: reserveForm.email.trim(),
+        phone: reserveForm.phone.trim(),
+        password: reserveForm.password,
+        message: reserveForm.message.trim(),
+      });
+
+      setReserveToast("Request sent successfully.");
+      setTimeout(() => setReserveToast(""), 2200);
+      setReserveForm(initialReserveForm);
+      closeReserveModal();
+    } catch {
+      setReserveError("Failed to submit request. Please try again.");
+    } finally {
+      setReserveLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background">
       <PublicNavbar />
 
-      {/* Hero */}
       <section className="gradient-hero pt-36 pb-24 px-6">
         <div className="container mx-auto text-center max-w-3xl">
           <motion.h1
@@ -69,9 +112,8 @@ const Home: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.15 }}
             className="text-lg md:text-xl text-primary-foreground/80 mb-10 leading-relaxed max-w-2xl mx-auto"
           >
-            Supervise and control telepresence robots remotely with real-time video streaming,
-            two-way communication, and intuitive directional controls. Bridging physical presence
-            and digital connectivity for enterprise and academic environments.
+            Supervise and control telepresence robots remotely with real-time video streaming, two-way communication, and intuitive directional controls.
+            Bridging physical presence and digital connectivity for enterprise and academic environments.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -79,12 +121,7 @@ const Home: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <Button
-              size="lg"
-              variant="secondary"
-              className="btn-transition font-semibold px-8"
-              onClick={() => navigate("/login")}
-            >
+            <Button size="lg" variant="secondary" className="btn-transition font-semibold px-8" onClick={() => navigate("/login")}>
               Sign In
             </Button>
             <Button
@@ -95,22 +132,14 @@ const Home: React.FC = () => {
             >
               <CalendarCheck className="h-4 w-4" /> Reserve a Robot
             </Button>
-            <Link to="/shop">
-              <Button size="lg" variant="outline" className="btn-transition border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 px-8">
-                Browse Robots
-              </Button>
-            </Link>
           </motion.div>
         </div>
       </section>
 
-      {/* Features */}
       <section className="py-24 px-6 gradient-subtle">
         <div className="container mx-auto max-w-5xl">
           <motion.div initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4 }}>
-            <h2 className="text-3xl md:text-4xl font-bold text-center text-foreground mb-4 tracking-tight">
-              Platform Features
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-center text-foreground mb-4 tracking-tight">Platform Features</h2>
             <p className="text-center text-muted-foreground mb-14 max-w-2xl mx-auto text-lg">
               Everything you need to manage and operate your fleet of telepresence robots from a single, unified dashboard.
             </p>
@@ -136,20 +165,16 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Contact & Location */}
       <section className="py-24 px-6 bg-background">
         <div className="container mx-auto max-w-5xl">
           <motion.div initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4 }}>
-            <h2 className="text-3xl md:text-4xl font-bold text-center text-foreground mb-4 tracking-tight">
-              Contact & Location
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-center text-foreground mb-4 tracking-tight">Contact & Location</h2>
             <p className="text-center text-muted-foreground mb-14 max-w-2xl mx-auto text-lg">
-              Get in touch with our team or visit us at our office. We're here to help you get started with telepresence.
+              Get in touch with our team or visit us at our office. We&apos;re here to help you get started with telepresence.
             </p>
           </motion.div>
 
           <div className="grid lg:grid-cols-2 gap-8">
-            {/* Contact Info */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -189,7 +214,6 @@ const Home: React.FC = () => {
               </div>
             </motion.div>
 
-            {/* Google Map */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -212,14 +236,12 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t py-10 px-6 bg-muted/30">
         <div className="container mx-auto text-center text-sm text-muted-foreground">
-          © 2026 TeleBot. Telepresence Robot Management Platform. All rights reserved.
+          2026 TeleBot. Telepresence Robot Management Platform. All rights reserved.
         </div>
       </footer>
 
-      {/* Reserve Robot Modal */}
       <AnimatePresence>
         {showReserveForm && (
           <motion.div
@@ -227,17 +249,19 @@ const Home: React.FC = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowReserveForm(false)}
+            onClick={closeReserveModal}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-className="bg-white rounded-xl border shadow-2xl max-w-md w-full p-7 relative"            >
+              className="bg-white rounded-xl border shadow-2xl max-w-md w-full p-7 relative"
+            >
               <button
-                onClick={() => setShowReserveForm(false)}
+                onClick={closeReserveModal}
                 className="absolute top-4 right-4 text-muted-foreground hover:text-foreground btn-transition"
+                type="button"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -252,42 +276,101 @@ className="bg-white rounded-xl border shadow-2xl max-w-md w-full p-7 relative"  
                 Fill out this form to request a robot reservation. Our team will review and confirm your booking.
               </p>
 
-              {reserveSent ? (
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8">
-                  <div className="h-14 w-14 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
-                    <Send className="h-6 w-6 text-success" />
-                  </div>
-                  <p className="font-semibold text-foreground">Request Sent!</p>
-                  <p className="text-sm text-muted-foreground mt-1">We'll get back to you shortly.</p>
-                </motion.div>
-              ) : (
-                <form onSubmit={handleReserveSubmit} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label>Full Name</Label>
-                    <Input placeholder="John Doe" value={reserveForm.name} onChange={(e) => setReserveForm({ ...reserveForm, name: e.target.value })} required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Email</Label>
-                    <Input type="email" placeholder="john@company.com" value={reserveForm.email} onChange={(e) => setReserveForm({ ...reserveForm, email: e.target.value })} required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Phone</Label>
-                    <Input type="tel" placeholder="+33 6 12 34 56 78" value={reserveForm.phone} onChange={(e) => setReserveForm({ ...reserveForm, phone: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Robot Model</Label>
-                    <Input placeholder="TeleBot Pro" value={reserveForm.robotModel} onChange={(e) => setReserveForm({ ...reserveForm, robotModel: e.target.value })} required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Message</Label>
-                    <Textarea placeholder="Tell us about your use case..." value={reserveForm.message} onChange={(e) => setReserveForm({ ...reserveForm, message: e.target.value })} rows={3} />
-                  </div>
-                  <Button type="submit" className="w-full btn-transition gap-2">
-                    <Send className="h-4 w-4" /> Submit Request
-                  </Button>
-                </form>
+              {reserveError && (
+                <div className="mb-3 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {reserveError}
+                </div>
               )}
+
+              <form onSubmit={handleReserveSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>First Name</Label>
+                    <Input
+                      placeholder="John"
+                      value={reserveForm.firstName}
+                      onChange={(e) => setReserveForm({ ...reserveForm, firstName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Last Name</Label>
+                    <Input
+                      placeholder="Doe"
+                      value={reserveForm.lastName}
+                      onChange={(e) => setReserveForm({ ...reserveForm, lastName: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="john@company.com"
+                    value={reserveForm.email}
+                    onChange={(e) => setReserveForm({ ...reserveForm, email: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    placeholder="+33 6 12 34 56 78"
+                    value={reserveForm.phone}
+                    onChange={(e) => setReserveForm({ ...reserveForm, phone: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Password</Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Password"
+                      value={reserveForm.password}
+                      onChange={(e) => setReserveForm({ ...reserveForm, password: e.target.value })}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground btn-transition"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Describe how you will use the robot</Label>
+                  <Textarea
+                    placeholder="Briefly describe your use case and expected tasks."
+                    value={reserveForm.message}
+                    onChange={(e) => setReserveForm({ ...reserveForm, message: e.target.value })}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full btn-transition gap-2" disabled={reserveLoading}>
+                  {reserveLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {reserveLoading ? "Submitting..." : "Submit Request"}
+                </Button>
+              </form>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {reserveToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="fixed bottom-5 right-5 z-[60] rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 shadow-lg"
+          >
+            {reserveToast}
           </motion.div>
         )}
       </AnimatePresence>

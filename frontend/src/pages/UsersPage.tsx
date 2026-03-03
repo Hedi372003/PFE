@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,12 @@ type User = {
 };
 
 const UsersPage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
   const loadUsers = async () => {
     try {
@@ -34,6 +37,17 @@ const UsersPage: React.FC = () => {
   useEffect(() => {
     loadUsers();
   }, []);
+
+  useEffect(() => {
+    const state = location.state as { toast?: string } | null;
+    if (state?.toast) {
+      setMessage(state.toast);
+      const timer = window.setTimeout(() => setMessage(""), 2500);
+      navigate(location.pathname, { replace: true, state: null });
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [location.pathname, location.state, navigate]);
 
   const filteredUsers = useMemo(() => {
     const term = search.toLowerCase();
@@ -72,6 +86,7 @@ const UsersPage: React.FC = () => {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        {message && <p className="text-sm text-emerald-700">{message}</p>}
 
         <div className="card-elevated overflow-hidden">
           <table className="w-full text-sm">

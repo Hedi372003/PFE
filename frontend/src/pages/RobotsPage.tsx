@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, Pencil, Trash2, Bot } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/layout/AppLayout";
 import api from "@/api/axios";
@@ -10,14 +10,15 @@ type Robot = {
   id: string;
   name: string;
   robotId: string;
-  latitude: number;
-  longitude: number;
   status: string;
 };
 
 const RobotsPage: React.FC = () => {
   const [robots, setRobots] = useState<Robot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const loadRobots = async () => {
     try {
@@ -31,8 +32,19 @@ const RobotsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadRobots();
+    void loadRobots();
   }, []);
+
+  useEffect(() => {
+    const state = location.state as { toast?: string } | null;
+    if (state?.toast) {
+      setMessage(state.toast);
+      const timer = window.setTimeout(() => setMessage(""), 2200);
+      navigate(location.pathname, { replace: true, state: null });
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [location.pathname, location.state, navigate]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -57,8 +69,6 @@ const RobotsPage: React.FC = () => {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-6">
-
-        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">Robots</h1>
@@ -74,8 +84,10 @@ const RobotsPage: React.FC = () => {
             </Button>
           </Link>
         </div>
+        {message && (
+          <p className="text-sm text-emerald-700">{message}</p>
+        )}
 
-        {/* Robots Grid */}
         {loading ? (
           <p>Loading robots...</p>
         ) : (
@@ -101,12 +113,7 @@ const RobotsPage: React.FC = () => {
 
                 <div>
                   <h3 className="font-semibold text-lg">{robot.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    ID: {robot.robotId}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Coords: {robot.latitude}, {robot.longitude}
-                  </p>
+                  <p className="text-sm text-muted-foreground">ID: {robot.robotId}</p>
                 </div>
 
                 <div className="flex justify-between items-center">

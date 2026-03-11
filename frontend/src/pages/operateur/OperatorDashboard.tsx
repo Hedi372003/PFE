@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+<<<<<<< HEAD
 import { Bot, Wifi, Activity, Gamepad2 } from "lucide-react";
+=======
+import { Bot, Wifi, Battery, MapPin, Gamepad2 } from "lucide-react";
+>>>>>>> forth
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import api from "@/api/axios";
@@ -10,6 +14,12 @@ type Robot = {
   name: string;
   robotId: string;
   status: string;
+<<<<<<< HEAD
+=======
+  battery?: number;
+  latitude?: number;
+  longitude?: number;
+>>>>>>> forth
 };
 
 const OperatorDashboard: React.FC = () => {
@@ -20,8 +30,13 @@ const OperatorDashboard: React.FC = () => {
     try {
       const { data } = await api.get("/api/robots");
       setRobots(data || []);
+<<<<<<< HEAD
     } catch {
       console.error("Failed to load robots");
+=======
+    } catch (err) {
+      console.error("Failed to load robots", err);
+>>>>>>> forth
     } finally {
       setLoading(false);
     }
@@ -31,11 +46,19 @@ const OperatorDashboard: React.FC = () => {
     loadRobots();
   }, []);
 
+<<<<<<< HEAD
   const activeRobots = robots.filter((r) => r.status === "online").length;
 
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-6">
+=======
+  const onlineRobots = robots.filter((r) => r.status === "online").length;
+
+  return (
+    <AppLayout>
+      <div className="max-w-7xl mx-auto space-y-8">
+>>>>>>> forth
 
         {/* HEADER */}
 
@@ -44,8 +67,13 @@ const OperatorDashboard: React.FC = () => {
             Operator Dashboard
           </h1>
 
+<<<<<<< HEAD
           <p className="text-sm text-slate-500 mt-1">
             Monitor and control telepresence robots in real-time.
+=======
+          <p className="text-slate-500 text-sm mt-1">
+            Monitor and control telepresence robots in real time
+>>>>>>> forth
           </p>
         </div>
 
@@ -54,43 +82,69 @@ const OperatorDashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
           <motion.div
+<<<<<<< HEAD
             className="bg-white border rounded-lg p-6 shadow-sm"
+=======
+            className="bg-white border rounded-xl p-6 shadow-sm"
+>>>>>>> forth
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <p className="text-sm text-slate-500">Total Robots</p>
+<<<<<<< HEAD
 
+=======
+>>>>>>> forth
             <p className="text-3xl font-bold text-slate-800">
               {robots.length}
             </p>
           </motion.div>
 
           <motion.div
+<<<<<<< HEAD
             className="bg-white border rounded-lg p-6 shadow-sm"
+=======
+            className="bg-white border rounded-xl p-6 shadow-sm"
+>>>>>>> forth
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <p className="text-sm text-slate-500">Online Robots</p>
+<<<<<<< HEAD
 
             <p className="text-3xl font-bold text-green-600">
               {activeRobots}
+=======
+            <p className="text-3xl font-bold text-green-600">
+              {onlineRobots}
+>>>>>>> forth
             </p>
           </motion.div>
 
           <motion.div
+<<<<<<< HEAD
             className="bg-white border rounded-lg p-6 shadow-sm"
+=======
+            className="bg-white border rounded-xl p-6 shadow-sm"
+>>>>>>> forth
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <p className="text-sm text-slate-500">Offline Robots</p>
+<<<<<<< HEAD
 
             <p className="text-3xl font-bold text-red-500">
               {robots.length - activeRobots}
+=======
+            <p className="text-3xl font-bold text-red-500">
+              {robots.length - onlineRobots}
+>>>>>>> forth
             </p>
           </motion.div>
 
         </div>
 
+<<<<<<< HEAD
         {/* ROBOT LIST */}
 
         <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
@@ -98,17 +152,36 @@ const OperatorDashboard: React.FC = () => {
           <div className="px-6 py-4 border-b">
             <h2 className="font-semibold text-slate-800">
               Robots
+=======
+        {/* ROBOT TABLE */}
+
+        <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+
+          <div className="px-6 py-4 border-b">
+            <h2 className="font-semibold text-slate-800">
+              Robot Fleet
+>>>>>>> forth
             </h2>
           </div>
 
           <table className="w-full text-sm">
 
+<<<<<<< HEAD
             <thead className="bg-slate-100 border-b">
               <tr>
                 <th className="text-left px-6 py-3">Robot Name</th>
                 <th className="text-left px-6 py-3">Robot ID</th>
                 <th className="text-left px-6 py-3">Status</th>
                 <th className="text-right px-6 py-3">Control</th>
+=======
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="px-6 py-3 text-left">Robot</th>
+                <th className="px-6 py-3 text-left">Status</th>
+                <th className="px-6 py-3 text-left">Battery</th>
+                <th className="px-6 py-3 text-left">Location</th>
+                <th className="px-6 py-3 text-right">Control</th>
+>>>>>>> forth
               </tr>
             </thead>
 
@@ -116,13 +189,21 @@ const OperatorDashboard: React.FC = () => {
 
               {loading && (
                 <tr>
+<<<<<<< HEAD
                   <td colSpan={4} className="text-center py-10">
+=======
+                  <td colSpan={5} className="text-center py-10">
+>>>>>>> forth
                     Loading robots...
                   </td>
                 </tr>
               )}
 
               {!loading && robots.map((robot) => (
+<<<<<<< HEAD
+=======
+
+>>>>>>> forth
                 <tr key={robot.id} className="border-b hover:bg-slate-50">
 
                   <td className="px-6 py-3 flex items-center gap-2">
@@ -130,10 +211,13 @@ const OperatorDashboard: React.FC = () => {
                     {robot.name}
                   </td>
 
+<<<<<<< HEAD
                   <td className="px-6 py-3 text-slate-600">
                     {robot.robotId}
                   </td>
 
+=======
+>>>>>>> forth
                   <td className="px-6 py-3">
 
                     {robot.status === "online" ? (
@@ -149,6 +233,27 @@ const OperatorDashboard: React.FC = () => {
 
                   </td>
 
+<<<<<<< HEAD
+=======
+                  <td className="px-6 py-3 flex items-center gap-1 text-slate-600">
+
+                    <Battery size={14} />
+
+                    {robot.battery ?? 80}%
+
+                  </td>
+
+                  <td className="px-6 py-3 flex items-center gap-1 text-slate-600">
+
+                    <MapPin size={14} />
+
+                    {robot.latitude
+                      ? `${robot.latitude.toFixed(3)}, ${robot.longitude?.toFixed(3)}`
+                      : "Unknown"}
+
+                  </td>
+
+>>>>>>> forth
                   <td className="px-6 py-3 text-right">
 
                     <Button
@@ -165,6 +270,10 @@ const OperatorDashboard: React.FC = () => {
                   </td>
 
                 </tr>
+<<<<<<< HEAD
+=======
+
+>>>>>>> forth
               ))}
 
             </tbody>
@@ -178,4 +287,8 @@ const OperatorDashboard: React.FC = () => {
   );
 };
 
+<<<<<<< HEAD
 export default OperatorDashboard;
+=======
+export default OperatorDashboard;
+>>>>>>> forth

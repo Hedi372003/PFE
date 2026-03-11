@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { JSX, useEffect, useState } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -10,7 +10,7 @@ import {
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
-import OperatorDashboard from "./pages/OperatorDashboard";
+import OperatorDashboard from "./pages/operateur/OperatorDashboard";
 import AddUser from "./pages/AddUser";
 import EditUser from "./pages/EditUser";
 import RobotControl from "./pages/RobotControl";

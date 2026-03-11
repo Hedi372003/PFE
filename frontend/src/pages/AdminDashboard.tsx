@@ -303,8 +303,4 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   );
 };
 
-<<<<<<< HEAD
 export default AdminDashboard;
-=======
-export default AdminDashboard;
->>>>>>> forth

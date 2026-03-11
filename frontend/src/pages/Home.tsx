@@ -113,11 +113,7 @@ const Home: React.FC = () => {
 
       {/* HERO SECTION */}
 
-<<<<<<< HEAD
-      <section className="pt-40 pb-32 px-6 bg-gradient-to-b from-[#1e3a5f] to-[#254f82]">
-=======
-      <section className="pt-40 pb-32 px-6 bg-gradient-to-b from-[#1b3556] to-[#2c5d9e]">
->>>>>>> forth
+      <section className="pt-40 pb-32 px-6 bg-gradient-to-b from-blue-700 to-blue-600">
 
         <div className="max-w-4xl mx-auto text-center">
 

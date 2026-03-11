@@ -41,6 +41,8 @@ const parseNameFallback = (name) => {
   };
 };
 
+const buildDeletedEmail = (email) => `deleted_${Date.now()}_${email}`;
+
 exports.createUser = async (req, res) => {
   try {
     const {
@@ -69,6 +71,23 @@ exports.createUser = async (req, res) => {
     ) {
       return res.status(400).json({
         message: "firstName, lastName, email, phone and password are required",
+      });
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: { email: normalizedEmail },
+      select: { id: true, isActive: true, email: true },
+    });
+
+    if (existingUser && existingUser.isActive) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
+    // Backward-compatible fix: archive inactive duplicate email before create.
+    if (existingUser && !existingUser.isActive) {
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { email: buildDeletedEmail(existingUser.email) },
       });
     }
 
@@ -173,16 +192,21 @@ exports.deleteUser = async (req, res) => {
   try {
     const existing = await prisma.user.findFirst({
       where: { id: req.params.id, isActive: true },
-      select: { id: true },
+      select: { id: true, email: true },
     });
 
     if (!existing) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const archivedEmail = buildDeletedEmail(existing.email);
+
     await prisma.user.update({
       where: { id: req.params.id },
-      data: { isActive: false },
+      data: {
+        email: archivedEmail,
+        isActive: false,
+      },
     });
 
     return res.json({ message: "User deleted successfully" });

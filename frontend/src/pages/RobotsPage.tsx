@@ -36,10 +36,13 @@ const RobotsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const state = location.state as { toast?: string } | null;
+    const state = location.state as { toast?: string; refreshRobots?: boolean } | null;
     if (state?.toast) {
       setMessage(state.toast);
       const timer = window.setTimeout(() => setMessage(""), 2200);
+      if (state.refreshRobots) {
+        void loadRobots();
+      }
       navigate(location.pathname, { replace: true, state: null });
       return () => window.clearTimeout(timer);
     }

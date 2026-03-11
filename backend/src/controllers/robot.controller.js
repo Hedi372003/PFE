@@ -1,7 +1,16 @@
 const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
+const robotCommunication = require("../config/robot-communication");
 
 const validStatuses = new Set(["online", "offline", "maintenance"]);
+const validCommands = new Set([
+  "start",
+  "stop",
+  "move_forward",
+  "move_backward",
+  "turn_left",
+  "turn_right",
+]);
 
 const mapRobot = (robot) => ({
   _id: robot.id,
@@ -32,14 +41,14 @@ exports.createRobot = async (req, res) => {
     const { name, robotId, latitude, longitude, status } = req.body;
 
     if (name === undefined || robotId === undefined) {
-      return res.status(400).json({ message: "name and robotId are required" });
+      return res.status(400).json({ message: "Name and robotId required" });
     }
 
     const normalizedName = String(name).trim();
     const normalizedRobotId = String(robotId).trim();
 
     if (!normalizedName || !normalizedRobotId) {
-      return res.status(400).json({ message: "name and robotId are required" });
+      return res.status(400).json({ message: "Name and robotId required" });
     }
 
     const normalizedStatus = status && validStatuses.has(status) ? status : "offline";
@@ -142,5 +151,118 @@ exports.deleteRobot = async (req, res) => {
     }
 
     return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getRobotControlStatus = async (req, res) => {
+  try {
+    const robot = await prisma.robot.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, robotId: true, status: true },
+    });
+
+    if (!robot) {
+      return res.status(404).json({ message: "Robot not found" });
+    }
+
+    const telemetry = robotCommunication.getRuntimeState(robot);
+
+    return res.json({
+      robot: {
+        id: robot.id,
+        name: robot.name,
+        robotId: robot.robotId,
+        status: robot.status,
+      },
+      telemetry,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch robot status" });
+  }
+};
+
+exports.sendRobotCommand = async (req, res) => {
+  try {
+    const robot = await prisma.robot.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, robotId: true, status: true },
+    });
+
+    if (!robot) {
+      return res.status(404).json({ message: "Robot not found" });
+    }
+
+    if (robot.status !== "online") {
+      return res.status(409).json({ message: "Robot is offline" });
+    }
+
+    const { command, parameters = {}, speed, direction } = req.body || {};
+    const normalizedCommand = String(command || "").trim().toLowerCase();
+
+    if (!validCommands.has(normalizedCommand)) {
+      return res.status(400).json({
+        message: "Invalid command",
+        allowedCommands: Array.from(validCommands),
+      });
+    }
+
+    const sanitizedParameters = {};
+    const mergedParameters = {
+      ...(parameters && typeof parameters === "object" ? parameters : {}),
+      ...(speed !== undefined ? { speed } : {}),
+      ...(direction !== undefined ? { direction } : {}),
+    };
+
+    if (mergedParameters && typeof mergedParameters === "object") {
+      if (mergedParameters.speed !== undefined) {
+        const parsedSpeed = Number(mergedParameters.speed);
+        if (!Number.isFinite(parsedSpeed) || parsedSpeed < 0) {
+          return res.status(400).json({ message: "Invalid speed parameter" });
+        }
+        sanitizedParameters.speed = parsedSpeed;
+      }
+
+      if (mergedParameters.direction !== undefined) {
+        sanitizedParameters.direction = String(mergedParameters.direction).trim();
+      }
+    }
+
+    const commandMessage = {
+      type: "robot.command",
+      command: normalizedCommand,
+      parameters: sanitizedParameters,
+      requestedAt: new Date().toISOString(),
+      requestedBy: req.user
+        ? { id: req.user.id || null, role: req.user.role || null }
+        : null,
+      robot: {
+        id: robot.id,
+        name: robot.name,
+        robotId: robot.robotId,
+      },
+    };
+
+    const publishResult = await robotCommunication.publishCommand(commandMessage);
+    const telemetry = robotCommunication.updateRuntimeState(robot, normalizedCommand);
+
+    return res.status(202).json({
+      status: "queued",
+      command: {
+        name: normalizedCommand,
+        parameters: sanitizedParameters,
+      },
+      robot: {
+        id: robot.id,
+        name: robot.name,
+        robotId: robot.robotId,
+        status: robot.status,
+      },
+      transport: publishResult.transport,
+      topic: publishResult.topic,
+      telemetry,
+    });
+  } catch (error) {
+    console.error("sendRobotCommand error:", error);
+    return res.status(500).json({ message: "Failed to dispatch command" });
   }
 };

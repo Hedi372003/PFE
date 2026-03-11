@@ -40,7 +40,7 @@ const AddRobot: React.FC = () => {
 
       navigate("/robots", {
         replace: true,
-        state: { toast: "Robot created successfully." },
+        state: { toast: "Robot created successfully.", refreshRobots: true },
       });
     } catch (err: unknown) {
       if (err instanceof AxiosError) {

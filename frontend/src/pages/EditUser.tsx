@@ -198,7 +198,14 @@ const EditUser: React.FC = () => {
 
                 <div className="space-y-1.5 md:col-span-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" value={form.email} disabled />
+                  <Input
+                    id="email"
+                    value={form.email}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setField("email", e.target.value)
+                    }
+                    required
+                  />
                 </div>
 
                 <div className="space-y-1.5">

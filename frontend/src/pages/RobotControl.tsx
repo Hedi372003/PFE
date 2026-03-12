@@ -11,16 +11,42 @@ const RobotControl: React.FC = () => {
   const socketRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
 
+  /* SEND ROBOT COMMAND */
+
+  const sendCommand = (command: string) => {
+
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+
+      socketRef.current.send(
+        JSON.stringify({
+          type: "command",
+          command: command
+        })
+      );
+
+      console.log("Command sent:", command);
+
+    }
+
+  };
+
+  /* START VIDEO */
+
   const startVideo = async () => {
 
     console.log("Starting WebRTC connection...");
 
-    /* WebSocket connection */
+    /* CLOSE OLD CONNECTION */
+
+    if (socketRef.current) socketRef.current.close();
+    if (pcRef.current) pcRef.current.close();
+
+    /* CREATE SOCKET */
 
     const socket = new WebSocket("ws://localhost:5002");
     socketRef.current = socket;
 
-    /* Create WebRTC peer */
+    /* CREATE PEER */
 
     const pc = new RTCPeerConnection({
       iceServers: [
@@ -30,11 +56,11 @@ const RobotControl: React.FC = () => {
 
     pcRef.current = pc;
 
-    /* Receive robot video */
+    /* RECEIVE VIDEO */
 
     pc.ontrack = (event) => {
 
-      console.log("Video stream received");
+      console.log("TRACK RECEIVED", event);
 
       if (videoRef.current) {
         videoRef.current.srcObject = event.streams[0];
@@ -42,37 +68,39 @@ const RobotControl: React.FC = () => {
 
     };
 
-    /* ICE candidates */
+    /* ICE */
 
     pc.onicecandidate = (event) => {
 
       if (event.candidate && socket.readyState === WebSocket.OPEN) {
 
-        socket.send(JSON.stringify({
-          type: "candidate",
-          candidate: event.candidate
-        }));
+        socket.send(
+          JSON.stringify({
+            type: "candidate",
+            candidate: event.candidate
+          })
+        );
 
       }
 
     };
 
-    /* WebSocket opened */
+    /* SOCKET OPEN */
 
     socket.onopen = async () => {
 
-      console.log("Operator connected to signaling server");
+      console.log("Operator connected");
 
       socket.send(JSON.stringify({
         type: "operator"
       }));
 
-      /* Create WebRTC offer */
+      /* IMPORTANT FOR RECEIVING VIDEO */
 
-      const offer = await pc.createOffer({
-        offerToReceiveVideo: true,
-        offerToReceiveAudio: true
-      });
+      pc.addTransceiver("video", { direction: "recvonly" });
+      pc.addTransceiver("audio", { direction: "recvonly" });
+
+      const offer = await pc.createOffer();
 
       await pc.setLocalDescription(offer);
 
@@ -83,15 +111,13 @@ const RobotControl: React.FC = () => {
 
     };
 
-    /* Receive messages */
+    /* RECEIVE SIGNALS */
 
     socket.onmessage = async (event) => {
 
       const data = JSON.parse(event.data);
 
       console.log("Signal message:", data.type);
-
-      /* Receive answer */
 
       if (data.type === "answer") {
 
@@ -100,8 +126,6 @@ const RobotControl: React.FC = () => {
         );
 
       }
-
-      /* Receive ICE */
 
       if (data.type === "candidate") {
 
@@ -113,7 +137,7 @@ const RobotControl: React.FC = () => {
 
         } catch (err) {
 
-          console.error("ICE candidate error:", err);
+          console.error("ICE error:", err);
 
         }
 
@@ -139,9 +163,10 @@ const RobotControl: React.FC = () => {
 
       <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* Header */}
+        {/* HEADER */}
 
         <div>
+
           <h1 className="text-2xl font-bold text-slate-800">
             Robot Control
           </h1>
@@ -149,6 +174,7 @@ const RobotControl: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1">
             Operate the telepresence robot in real time.
           </p>
+
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -157,18 +183,18 @@ const RobotControl: React.FC = () => {
 
           <div className="md:col-span-2 bg-white border rounded-lg shadow-sm flex flex-col">
 
-            {/* Status */}
+            {/* STATUS */}
 
             <div className="flex justify-end p-4">
 
               <div className="flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">
-                <Wifi size={14} />
+                <Wifi size={14}/>
                 Connected
               </div>
 
             </div>
 
-            {/* Video */}
+            {/* VIDEO */}
 
             <div className="h-72 flex items-center justify-center bg-black">
 
@@ -187,7 +213,7 @@ const RobotControl: React.FC = () => {
 
             </div>
 
-            {/* Controls */}
+            {/* BUTTONS */}
 
             <div className="border-t p-4 flex gap-3">
 
@@ -206,7 +232,7 @@ const RobotControl: React.FC = () => {
 
           </div>
 
-          {/* Direction Controls */}
+          {/* DIRECTION */}
 
           <div className="bg-white border rounded-lg shadow-sm p-6 flex flex-col items-center">
 
@@ -216,36 +242,53 @@ const RobotControl: React.FC = () => {
 
             <div className="grid grid-cols-3 gap-4">
 
-              <div />
+              <div/>
 
-              <Button className="bg-slate-900 text-white hover:bg-slate-800">
-                <ArrowUp size={18} />
+              <Button
+                className="bg-slate-900 text-white hover:bg-slate-800"
+                onMouseDown={() => sendCommand("forward")}
+                onMouseUp={() => sendCommand("stop")}
+              >
+                <ArrowUp size={18}/>
               </Button>
 
-              <div />
+              <div/>
 
-              <Button className="bg-slate-900 text-white hover:bg-slate-800">
-                <ArrowLeft size={18} />
+              <Button
+                className="bg-slate-900 text-white hover:bg-slate-800"
+                onMouseDown={() => sendCommand("left")}
+                onMouseUp={() => sendCommand("stop")}
+              >
+                <ArrowLeft size={18}/>
               </Button>
 
               <Button
                 variant="secondary"
-                className="bg-gray-200 text-gray-600 cursor-default"
+                className="bg-gray-200 text-gray-600"
+                onClick={() => sendCommand("stop")}
               >
                 ●
               </Button>
 
-              <Button className="bg-slate-900 text-white hover:bg-slate-800">
-                <ArrowRight size={18} />
+              <Button
+                className="bg-slate-900 text-white hover:bg-slate-800"
+                onMouseDown={() => sendCommand("right")}
+                onMouseUp={() => sendCommand("stop")}
+              >
+                <ArrowRight size={18}/>
               </Button>
 
-              <div />
+              <div/>
 
-              <Button className="bg-slate-900 text-white hover:bg-slate-800">
-                <ArrowDown size={18} />
+              <Button
+                className="bg-slate-900 text-white hover:bg-slate-800"
+                onMouseDown={() => sendCommand("back")}
+                onMouseUp={() => sendCommand("stop")}
+              >
+                <ArrowDown size={18}/>
               </Button>
 
-              <div />
+              <div/>
 
             </div>
 

@@ -2,7 +2,7 @@ const WebSocket = require("ws");
 
 const PORT = 5002;
 
-/* IMPORTANT : écouter sur tout le réseau */
+/* WebSocket server accessible depuis le réseau */
 
 const wss = new WebSocket.Server({
   port: PORT,
@@ -52,6 +52,8 @@ wss.on("connection", (ws) => {
 
         robot.send(JSON.stringify(data));
 
+        return;
+
       }
 
       /* WEBRTC ANSWER */
@@ -61,6 +63,8 @@ wss.on("connection", (ws) => {
         console.log("Forwarding answer to operator");
 
         operator.send(JSON.stringify(data));
+
+        return;
 
       }
 
@@ -72,11 +76,27 @@ wss.on("connection", (ws) => {
 
           robot.send(JSON.stringify(data));
 
-        } else if (ws === robot && operator) {
+        }
+
+        else if (ws === robot && operator) {
 
           operator.send(JSON.stringify(data));
 
         }
+
+        return;
+
+      }
+
+      /* ROBOT COMMANDS */
+
+      if (data.type === "command" && robot) {
+
+        console.log("Robot command:", data.command);
+
+        robot.send(JSON.stringify(data));
+
+        return;
 
       }
 
@@ -105,6 +125,12 @@ wss.on("connection", (ws) => {
       console.log("Robot disconnected");
 
     }
+
+  });
+
+  ws.on("error", (error) => {
+
+    console.error("WebSocket error:", error);
 
   });
 

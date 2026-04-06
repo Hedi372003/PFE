@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
+const notificationService = require("../services/notification.service");
 
 const selectWithoutPassword = {
   id: true,
@@ -10,7 +11,6 @@ const selectWithoutPassword = {
   phone: true,
   role: true,
   robotId: true,
-  isActive: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -25,7 +25,6 @@ const mapUser = (user) => ({
   phone: user.phone,
   role: user.role,
   robotId: user.robotId,
-  isActive: user.isActive,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 });
@@ -81,9 +80,21 @@ exports.createUser = async (req, res) => {
         password: await bcrypt.hash(password, 10),
         role: "user",
         robotId: (robotId || robotAssigned || "").trim() || null,
-        isActive: true,
       },
       select: selectWithoutPassword,
+    });
+
+    await notificationService.safeCreateNotification({
+      title: "User created",
+      body: `${createdUser.firstName} ${createdUser.lastName} joined the administration platform.`,
+      kind: "system",
+      priority: "success",
+      targetRole: "admin",
+      metadata: {
+        userId: createdUser.id,
+        email: createdUser.email,
+        role: createdUser.role,
+      },
     });
 
     return res.status(201).json(mapUser(createdUser));
@@ -98,7 +109,6 @@ exports.createUser = async (req, res) => {
 exports.getUsers = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
-      where: { isActive: true },
       orderBy: { createdAt: "desc" },
       select: selectWithoutPassword,
     });
@@ -112,7 +122,7 @@ exports.getUsers = async (req, res) => {
 exports.getUserById = async (req, res) => {
   try {
     const user = await prisma.user.findFirst({
-      where: { id: req.params.id, isActive: true },
+      where: { id: req.params.id },
       select: selectWithoutPassword,
     });
 
@@ -128,11 +138,18 @@ exports.getUserById = async (req, res) => {
 
 exports.updateUser = async (req, res) => {
   try {
-    const { firstName, lastName, phone, robotId, password, robotAssigned } = req.body;
+    const { firstName, lastName, email, phone, robotId, password, robotAssigned } = req.body;
     const data = {};
 
     if (firstName !== undefined) data.firstName = String(firstName).trim();
     if (lastName !== undefined) data.lastName = String(lastName).trim();
+    if (email !== undefined) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+      if (!normalizedEmail) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+      data.email = normalizedEmail;
+    }
     if (phone !== undefined) data.phone = String(phone).trim();
     if (robotId !== undefined || robotAssigned !== undefined) {
       data.robotId = String(robotId || robotAssigned || "").trim() || null;
@@ -146,7 +163,7 @@ exports.updateUser = async (req, res) => {
     }
 
     const existing = await prisma.user.findFirst({
-      where: { id: req.params.id, isActive: true },
+      where: { id: req.params.id },
       select: { id: true },
     });
 
@@ -160,6 +177,19 @@ exports.updateUser = async (req, res) => {
       select: selectWithoutPassword,
     });
 
+    await notificationService.safeCreateNotification({
+      title: "User updated",
+      body: `${updatedUser.firstName} ${updatedUser.lastName} profile was updated.`,
+      kind: "system",
+      priority: "info",
+      targetRole: "admin",
+      metadata: {
+        userId: updatedUser.id,
+        email: updatedUser.email,
+        role: updatedUser.role,
+      },
+    });
+
     return res.json(mapUser(updatedUser));
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -171,22 +201,28 @@ exports.updateUser = async (req, res) => {
 
 exports.deleteUser = async (req, res) => {
   try {
-    const existing = await prisma.user.findFirst({
-      where: { id: req.params.id, isActive: true },
-      select: { id: true },
+    const deletedUser = await prisma.user.delete({
+      where: { id: req.params.id },
     });
 
-    if (!existing) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    await prisma.user.update({
-      where: { id: req.params.id },
-      data: { isActive: false },
+    await notificationService.safeCreateNotification({
+      title: "User deleted",
+      body: `${deletedUser.firstName} ${deletedUser.lastName} account was removed.`,
+      kind: "system",
+      priority: "info",
+      targetRole: "admin",
+      metadata: {
+        userId: deletedUser.id,
+        email: deletedUser.email,
+      },
     });
 
     return res.json({ message: "User deleted successfully" });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(500).json({ message: "Failed to delete user" });
   }
 };

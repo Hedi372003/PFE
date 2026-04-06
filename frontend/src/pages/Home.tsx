@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -14,7 +14,7 @@ import {
   CalendarCheck,
   Eye,
   EyeOff,
-  Loader2
+  Loader2,
 } from "lucide-react";
 
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
@@ -22,28 +22,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import api from "@/api/axios";
+import { companyService, requestService } from "@/services/api";
 
 const features = [
   {
     icon: Bot,
-    title: "Remote Robot Control",
-    desc: "Operate telepresence robots from anywhere with real-time directional controls and monitoring.",
+    title: "Visitor management",
+    desc: "Handle visitor requests, approvals, and onboarding from one administration workspace.",
   },
   {
     icon: Video,
-    title: "Live Video Stream",
-    desc: "Stream high-quality video feeds from robots to stay connected to remote environments.",
+    title: "Audio and video support",
+    desc: "Coordinate real-time telepresence calls and chat directly from the communication center.",
   },
   {
     icon: Wifi,
-    title: "Real-Time Communication",
-    desc: "Enable two-way audio and video communication for seamless remote interaction.",
+    title: "Robot supervision",
+    desc: "Track fleet availability, battery, and control status from the robot operations interface.",
   },
   {
     icon: Shield,
-    title: "Secure Platform",
-    desc: "Enterprise-grade security with role-based access control and encrypted communications.",
+    title: "Professional administration",
+    desc: "Use a secure, typed frontend architecture ready for demos, growth, and future backend integrations.",
   },
 ];
 
@@ -67,11 +67,10 @@ const initialReserveForm: ReserveFormState = {
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const company = useMemo(() => companyService.load(), []);
 
   const [showReserveForm, setShowReserveForm] = useState(false);
-  const [reserveForm, setReserveForm] =
-    useState<ReserveFormState>(initialReserveForm);
-
+  const [reserveForm, setReserveForm] = useState<ReserveFormState>(initialReserveForm);
   const [reserveLoading, setReserveLoading] = useState(false);
   const [reserveError, setReserveError] = useState("");
   const [reserveToast, setReserveToast] = useState("");
@@ -82,25 +81,19 @@ const Home: React.FC = () => {
     setReserveError("");
   };
 
-  const handleReserveSubmit = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
-
+  const handleReserveSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setReserveLoading(true);
     setReserveError("");
 
     try {
-      await api.post("/api/requests", reserveForm);
-
-      setReserveToast("Request sent successfully");
-
-      setTimeout(() => setReserveToast(""), 2500);
-
+      await requestService.create(reserveForm);
+      setReserveToast("Request sent successfully.");
+      window.setTimeout(() => setReserveToast(""), 2500);
       setReserveForm(initialReserveForm);
       closeReserveModal();
     } catch {
-      setReserveError("Failed to submit request");
+      setReserveError("Failed to submit the request.");
     } finally {
       setReserveLoading(false);
     }
@@ -108,272 +101,246 @@ const Home: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
       <PublicNavbar />
 
-      {/* HERO SECTION */}
-
-      <section className="pt-40 pb-32 px-6 bg-gradient-to-b from-[#1b3556] to-[#2c5d9e]">
-
-        <div className="max-w-4xl mx-auto text-center">
-
+      <section className="bg-gradient-to-b from-[#1b3556] to-[#2c5d9e] px-6 pb-32 pt-40">
+        <div className="mx-auto max-w-5xl text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-white mb-8"
+            className="mb-8 text-5xl font-extrabold text-white md:text-6xl lg:text-7xl"
           >
-            Telepresence Robot
+            {company.name}
             <br />
-            Management Platform
+            Telepresence Admin Platform
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-lg md:text-xl text-white/80 mb-10 leading-relaxed"
+            className="mb-10 text-lg leading-relaxed text-white/80 md:text-xl"
           >
-            Supervise and control telepresence robots remotely with real-time
-            video streaming, two-way communication and intuitive directional
-            controls. Bridging physical presence and digital connectivity.
+            {company.welcomeMessage}
           </motion.p>
 
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="flex flex-col sm:flex-row justify-center gap-6"
+            className="flex flex-col justify-center gap-6 sm:flex-row"
           >
-
             <Button
               size="lg"
-              className="bg-white text-blue-700 hover:bg-gray-100 px-10 py-6 text-lg font-semibold"
+              className="bg-white px-10 py-6 text-lg font-semibold text-blue-700 hover:bg-gray-100"
               onClick={() => navigate("/login")}
             >
-              Get Started
+              Open Admin App
             </Button>
 
             <Button
               size="lg"
-              className="bg-white/90 text-blue-700 hover:bg-white px-10 py-6 text-lg"
+              className="bg-white/90 px-10 py-6 text-lg text-blue-700 hover:bg-white"
               onClick={() => setShowReserveForm(true)}
             >
-              Reserve Robot
+              Request a Visit
             </Button>
-
           </motion.div>
 
+          {reserveToast ? (
+            <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white">
+              {reserveToast}
+            </div>
+          ) : null}
         </div>
       </section>
 
-      {/* FEATURES */}
+      <section className="bg-white px-6 py-24">
+        <div className="mx-auto max-w-6xl">
+          <h2 className="mb-14 text-center text-3xl font-bold">Platform Features</h2>
 
-      <section className="py-24 px-6 bg-white">
-
-        <div className="max-w-6xl mx-auto">
-
-          <h2 className="text-3xl font-bold text-center mb-14">
-            Platform Features
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-8">
-
-            {features.map((f, i) => (
+          <div className="grid gap-8 md:grid-cols-2">
+            {features.map((feature, index) => (
               <motion.div
-                key={i}
+                key={feature.title}
                 initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="p-8 bg-gray-50 rounded-xl border"
+                transition={{ delay: index * 0.05 }}
+                className="rounded-xl border bg-gray-50 p-8"
               >
-                <f.icon className="h-6 w-6 text-blue-600 mb-4" />
-
-                <h3 className="font-semibold text-lg mb-2">
-                  {f.title}
-                </h3>
-
-                <p className="text-gray-600 text-sm">
-                  {f.desc}
-                </p>
+                <feature.icon className="mb-4 h-6 w-6 text-blue-600" />
+                <h3 className="mb-2 text-lg font-semibold">{feature.title}</h3>
+                <p className="text-sm text-gray-600">{feature.desc}</p>
               </motion.div>
             ))}
-
           </div>
-
         </div>
-
       </section>
 
-      {/* CONTACT */}
-
-      <section className="py-24 px-6 bg-gray-50">
-
-        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-10">
-
-          <div className="bg-white p-8 rounded-xl border">
-
-            <h3 className="text-xl font-bold mb-6">Get in Touch</h3>
+      <section className="bg-gray-50 px-6 py-24">
+        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-2">
+          <div className="rounded-xl border bg-white p-8">
+            <h3 className="mb-6 text-xl font-bold">Contact</h3>
 
             <div className="space-y-5">
-
               <div className="flex gap-4">
                 <MapPin className="text-blue-600" />
-                <p>
-                  123 Innovation Boulevard
-                  <br />
-                  Paris, France
-                </p>
+                <p>{company.lobbyInstructions}</p>
               </div>
-
               <div className="flex gap-4">
                 <Mail className="text-blue-600" />
-                <p>contact@telebot.com</p>
+                <p>{company.supportEmail}</p>
               </div>
-
               <div className="flex gap-4">
                 <Phone className="text-blue-600" />
-                <p>+33 1 23 45 67 89</p>
+                <p>{company.supportPhone}</p>
               </div>
-
             </div>
-
           </div>
 
-          <div className="bg-white border rounded-xl overflow-hidden">
-
-            <iframe
-              title="Location"
-              src="https://www.google.com/maps?q=Paris&output=embed"
-              className="w-full h-[350px]"
-            />
-
+          <div className="overflow-hidden rounded-xl border bg-white p-8">
+            <h3 className="text-xl font-bold">Products and Services</h3>
+            <p className="mt-2 text-sm text-gray-600">Business hours: {company.hours}</p>
+            <div className="mt-6 space-y-3">
+              {company.products.map((product) => (
+                <div key={product} className="rounded-xl border bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                  {product}
+                </div>
+              ))}
+            </div>
           </div>
-
         </div>
-
       </section>
 
-      {/* FOOTER */}
-
-      <footer className="py-10 text-center text-sm text-gray-500 border-t">
-        2026 TeleBot. Telepresence Robot Management Platform.
+      <footer className="border-t py-10 text-center text-sm text-gray-500">
+        2026 {company.name}. Telepresence robot administration platform.
       </footer>
 
-      {/* RESERVE MODAL */}
-
       <AnimatePresence>
-
-        {showReserveForm && (
-
+        {showReserveForm ? (
           <motion.div
-            className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm"
             onClick={closeReserveModal}
           >
-
             <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(event) => event.stopPropagation()}
+              className="relative w-full max-w-md rounded-xl border bg-white p-7 shadow-2xl"
             >
-
-              <h2 className="text-xl font-bold mb-4">
-                Reserve a Robot
-              </h2>
-
-              {reserveError && (
-                <p className="text-red-500 text-sm mb-2">
-                  {reserveError}
-                </p>
-              )}
-
-              <form
-                onSubmit={handleReserveSubmit}
-                className="space-y-4"
+              <button
+                onClick={closeReserveModal}
+                className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
+                type="button"
               >
+                <X className="h-5 w-5" />
+              </button>
 
-                <Input
-                  placeholder="First Name"
-                  value={reserveForm.firstName}
-                  onChange={(e) =>
-                    setReserveForm({
-                      ...reserveForm,
-                      firstName: e.target.value,
-                    })
-                  }
-                  required
-                />
+              <div className="mb-2 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10">
+                  <CalendarCheck className="h-5 w-5 text-accent" />
+                </div>
+                <h2 className="text-xl font-bold text-foreground">Request a Visit</h2>
+              </div>
+              <p className="mb-6 text-sm text-muted-foreground">
+                Fill out this form so the administration team can review and schedule your telepresence visit.
+              </p>
 
-                <Input
-                  placeholder="Last Name"
-                  value={reserveForm.lastName}
-                  onChange={(e) =>
-                    setReserveForm({
-                      ...reserveForm,
-                      lastName: e.target.value,
-                    })
-                  }
-                  required
-                />
+              {reserveError ? (
+                <div className="mb-3 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {reserveError}
+                </div>
+              ) : null}
 
-                <Input
-                  placeholder="Email"
-                  type="email"
-                  value={reserveForm.email}
-                  onChange={(e) =>
-                    setReserveForm({
-                      ...reserveForm,
-                      email: e.target.value,
-                    })
-                  }
-                  required
-                />
+              <form onSubmit={handleReserveSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>First Name</Label>
+                    <Input
+                      placeholder="John"
+                      value={reserveForm.firstName}
+                      onChange={(event) => setReserveForm({ ...reserveForm, firstName: event.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Last Name</Label>
+                    <Input
+                      placeholder="Doe"
+                      value={reserveForm.lastName}
+                      onChange={(event) => setReserveForm({ ...reserveForm, lastName: event.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
 
-                <Input
-                  placeholder="Phone"
-                  value={reserveForm.phone}
-                  onChange={(e) =>
-                    setReserveForm({
-                      ...reserveForm,
-                      phone: e.target.value,
-                    })
-                  }
-                  required
-                />
+                <div className="space-y-1.5">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="john@company.com"
+                    value={reserveForm.email}
+                    onChange={(event) => setReserveForm({ ...reserveForm, email: event.target.value })}
+                    required
+                  />
+                </div>
 
-                <Textarea
-                  placeholder="Describe how you will use the robot"
-                  value={reserveForm.message}
-                  onChange={(e) =>
-                    setReserveForm({
-                      ...reserveForm,
-                      message: e.target.value,
-                    })
-                  }
-                />
+                <div className="space-y-1.5">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    placeholder="+216 00 000 000"
+                    value={reserveForm.phone}
+                    onChange={(event) => setReserveForm({ ...reserveForm, phone: event.target.value })}
+                    required
+                  />
+                </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={reserveLoading}
-                >
-                  {reserveLoading ? (
-                    <Loader2 className="animate-spin h-4 w-4" />
-                  ) : (
-                    "Submit Request"
-                  )}
+                <div className="space-y-1.5">
+                  <Label>Password</Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Password"
+                      value={reserveForm.password}
+                      onChange={(event) => setReserveForm({ ...reserveForm, password: event.target.value })}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((previous) => !previous)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Visit purpose or requested robot</Label>
+                  <Textarea
+                    placeholder="Briefly describe the visit objective or requested robot context."
+                    value={reserveForm.message}
+                    onChange={(event) => setReserveForm({ ...reserveForm, message: event.target.value })}
+                    required
+                  />
+                </div>
+
+                <Button type="submit" className="w-full gap-2" disabled={reserveLoading}>
+                  {reserveLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {reserveLoading ? "Submitting..." : "Submit Request"}
                 </Button>
-
               </form>
-
             </motion.div>
-
           </motion.div>
-        )}
-
+        ) : null}
       </AnimatePresence>
-
     </div>
   );
 };

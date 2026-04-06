@@ -1,21 +1,12 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { AxiosError } from "axios";
+
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import api from "@/api/axios";
-
-interface AddUserFormState {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  password: string;
-  robotId: string;
-}
+import { getApiErrorMessage, logService, requestService, userService } from "@/services/api";
+import type { UserDraft } from "@/types/user";
 
 interface PrefilledFromRequest {
   requestId: string;
@@ -30,11 +21,7 @@ interface LocationState {
   fromRequest?: PrefilledFromRequest;
 }
 
-interface ApiErrorResponse {
-  message?: string;
-}
-
-const emptyForm: AddUserFormState = {
+const emptyForm: UserDraft = {
   firstName: "",
   lastName: "",
   email: "",
@@ -49,7 +36,7 @@ const AddUser: React.FC = () => {
   const state = (location.state as LocationState | null) || null;
 
   const prefilled = useMemo(() => state?.fromRequest || null, [state]);
-  const [form, setForm] = useState<AddUserFormState>({
+  const [form, setForm] = useState<UserDraft>({
     ...emptyForm,
     ...(prefilled
       ? {
@@ -61,63 +48,43 @@ const AddUser: React.FC = () => {
         }
       : {}),
   });
-  const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const setField = <K extends keyof AddUserFormState>(key: K, value: AddUserFormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const setField = <K extends keyof UserDraft>(key: K, value: UserDraft[K]) => {
+    setForm((previous) => ({ ...previous, [key]: value }));
   };
 
-  const validate = (): string | null => {
-    if (!form.firstName.trim()) return "First name is required.";
-    if (!form.lastName.trim()) return "Last name is required.";
-    if (!form.email.trim()) return "Email is required.";
-    if (!form.phone.trim()) return "Phone is required.";
-    if (!form.password.trim()) return "Password is required.";
-    return null;
-  };
-
-  const getApiError = (err: unknown, fallback: string): string => {
-    if (err instanceof AxiosError) {
-      const apiMessage = (err.response?.data as ApiErrorResponse | undefined)?.message;
-      return apiMessage || fallback;
-    }
-    return fallback;
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
     setError("");
 
-    const validationError = validate();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setLoading(true);
     try {
-      await api.post("/api/users", {
+      const createdUser = await userService.create({
+        ...form,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        password: form.password,
-        robotId: form.robotId.trim() || null,
+        robotId: form.robotId.trim(),
       });
 
       if (prefilled?.requestId) {
-        await api.put(`/api/requests/${prefilled.requestId}/approve`);
+        await requestService.approve(prefilled.requestId);
       }
 
-      navigate("/users", {
-        replace: true,
-        state: {
-          toast: "User created successfully.",
-        },
+      logService.record({
+        category: "visit",
+        severity: "success",
+        actor: "Admin",
+        title: "Visitor created",
+        description: `${createdUser.firstName} ${createdUser.lastName} was added to visitor management.`,
       });
-    } catch (err: unknown) {
-      setError(getApiError(err, "Failed to create user."));
+
+      navigate("/users?created=1", { replace: true });
+    } catch (submitError) {
+      setError(getApiErrorMessage(submitError, "Failed to create the visitor profile."));
     } finally {
       setLoading(false);
     }
@@ -125,105 +92,72 @@ const AddUser: React.FC = () => {
 
   return (
     <AppLayout>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-        className="mx-auto max-w-2xl"
-      >
-        <div className="mb-2 flex items-center gap-2">
-          <h1 className="text-2xl font-bold text-foreground">Add User</h1>
-          {prefilled && (
-            <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-              From request
-            </span>
-          )}
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Add Visitor</h1>
+            {prefilled ? (
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                From request
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Create an approved visitor profile and optionally assign a robot before the session starts.
+          </p>
         </div>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Create a new user account, assign contact details, and optionally link a robot for operations.
-        </p>
 
-        {error && (
-          <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        {error ? (
+          <div className="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
             {error}
           </div>
-        )}
+        ) : null}
 
         <div className="card-elevated p-6">
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="firstName">First Name</Label>
-              <Input
-                id="firstName"
-                value={form.firstName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("firstName", e.target.value)}
-                required
-              />
+              <Input id="firstName" value={form.firstName} onChange={(event) => setField("firstName", event.target.value)} required />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="lastName">Last Name</Label>
-              <Input
-                id="lastName"
-                value={form.lastName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("lastName", e.target.value)}
-                required
-              />
+              <Input id="lastName" value={form.lastName} onChange={(event) => setField("lastName", event.target.value)} required />
             </div>
 
-            <div className="space-y-1.5 md:col-span-2">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("email", e.target.value)}
-                required
-              />
+              <Input id="email" type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} required />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={form.phone}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("phone", e.target.value)}
-                required
-              />
+              <Input id="phone" value={form.phone} onChange={(event) => setField("phone", event.target.value)} required />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={form.password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("password", e.target.value)}
-                required
-              />
+              <Input id="password" type="password" value={form.password} onChange={(event) => setField("password", event.target.value)} required />
             </div>
 
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="robotId">Robot ID (Optional)</Label>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="robotId">Robot ID</Label>
               <Input
                 id="robotId"
                 value={form.robotId}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setField("robotId", e.target.value)}
+                onChange={(event) => setField("robotId", event.target.value)}
+                placeholder="Optional robot assignment"
               />
             </div>
 
             <div className="md:col-span-2">
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full transition-all duration-200 hover:scale-[1.01] hover:shadow-md"
-              >
-                {loading ? "Creating user..." : "Create User"}
+              <Button type="submit" disabled={loading}>
+                {loading ? "Creating visitor..." : "Create Visitor"}
               </Button>
             </div>
           </form>
         </div>
-      </motion.div>
+      </div>
     </AppLayout>
   );
 };

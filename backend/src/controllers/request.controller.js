@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const notificationService = require("../services/notification.service");
 
 const mapRequest = (request, includePassword = false) => {
   const mapped = {
@@ -37,8 +38,9 @@ exports.getPendingRequests = async (req, res) => {
 exports.createRequest = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password, message } = req.body;
+    const normalizedMessage = String(message || "").trim();
 
-    if (!firstName || !lastName || !email || !phone || !password || !message) {
+    if (!firstName || !lastName || !email || !phone || !password || !normalizedMessage) {
       return res.status(400).json({
         message: "firstName, lastName, email, phone, password and message are required",
       });
@@ -51,8 +53,20 @@ exports.createRequest = async (req, res) => {
         email: String(email).trim().toLowerCase(),
         phone: String(phone).trim(),
         password: String(password),
-        robotId: String(message).trim(),
+        message: normalizedMessage,
         status: "pending",
+      },
+    });
+
+    await notificationService.safeCreateNotification({
+      title: "New visitor request",
+      body: `${request.firstName} ${request.lastName} submitted a new telepresence access request.`,
+      kind: "visitor",
+      priority: "warning",
+      targetRole: "admin",
+      metadata: {
+        requestId: request.id,
+        email: request.email,
       },
     });
 
@@ -82,6 +96,18 @@ exports.approveRequest = async (req, res) => {
       data: { status: "approved" },
     });
 
+    await notificationService.safeCreateNotification({
+      title: "Visitor request approved",
+      body: `${updatedRequest.firstName} ${updatedRequest.lastName} is now approved for telepresence access.`,
+      kind: "visitor",
+      priority: "success",
+      targetRole: "admin",
+      metadata: {
+        requestId: updatedRequest.id,
+        email: updatedRequest.email,
+      },
+    });
+
     return res.status(200).json({
       message: "Request approved",
       request: mapRequest(updatedRequest),
@@ -105,6 +131,18 @@ exports.rejectRequest = async (req, res) => {
     const updatedRequest = await prisma.request.update({
       where: { id: req.params.id },
       data: { status: "rejected" },
+    });
+
+    await notificationService.safeCreateNotification({
+      title: "Visitor request rejected",
+      body: `${updatedRequest.firstName} ${updatedRequest.lastName} request was rejected.`,
+      kind: "visitor",
+      priority: "info",
+      targetRole: "admin",
+      metadata: {
+        requestId: updatedRequest.id,
+        email: updatedRequest.email,
+      },
     });
 
     return res.status(200).json(mapRequest(updatedRequest));

@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/prisma");
+const notificationService = require("../services/notification.service");
 
 const validRoles = new Set(["admin", "user", "operator"]);
 
@@ -19,7 +20,9 @@ const toUserPayload = (user) => ({
   firstName: user.firstName,
   lastName: user.lastName,
   email: user.email,
+  phone: user.phone || "",
   role: user.role,
+  robotId: user.robotId || null,
 });
 
 exports.register = async (req, res) => {
@@ -51,7 +54,7 @@ exports.register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await prisma.user.create({
+    const createdUser = await prisma.user.create({
       data: {
         firstName: normalizedFirstName,
         lastName: normalizedLastName,
@@ -59,7 +62,19 @@ exports.register = async (req, res) => {
         phone: normalizedPhone,
         password: hashedPassword,
         role: normalizedRole,
-        isActive: true,
+      },
+    });
+
+    await notificationService.safeCreateNotification({
+      title: "New account registered",
+      body: `${createdUser.firstName} ${createdUser.lastName} created a ${createdUser.role} account.`,
+      kind: "system",
+      priority: "info",
+      targetRole: "admin",
+      metadata: {
+        userId: createdUser.id,
+        email: createdUser.email,
+        role: createdUser.role,
       },
     });
 
@@ -85,13 +100,14 @@ exports.login = async (req, res) => {
         firstName: true,
         lastName: true,
         email: true,
+        phone: true,
         password: true,
         role: true,
-        isActive: true,
+        robotId: true,
       },
     });
 
-    if (!user || !user.isActive) {
+    if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -118,13 +134,15 @@ exports.login = async (req, res) => {
 exports.me = async (req, res) => {
   try {
     const user = await prisma.user.findFirst({
-      where: { id: req.user.id, isActive: true },
+      where: { id: req.user.id },
       select: {
         id: true,
         firstName: true,
         lastName: true,
         email: true,
+        phone: true,
         role: true,
+        robotId: true,
       },
     });
 

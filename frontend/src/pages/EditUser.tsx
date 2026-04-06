@@ -1,42 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
-import { AxiosError } from "axios";
+
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import api from "@/api/axios";
+import { getApiErrorMessage, logService, userService } from "@/services/api";
+import type { UserUpdateInput } from "@/types/user";
 
 interface EditUserParams {
   id: string;
 }
 
-interface UserApiResponse {
-  id?: string;
-  _id?: string;
-  firstName?: string;
-  lastName?: string;
-  name?: string;
-  email: string;
-  phone?: string;
-  robotId?: string | null;
-}
-
-interface EditUserFormState {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
+type EditUserForm = Required<Pick<UserUpdateInput, "firstName" | "lastName" | "email" | "phone">> & {
   password: string;
   robotId: string;
-}
+};
 
-interface ApiErrorResponse {
-  message?: string;
-}
-
-const initialForm: EditUserFormState = {
+const initialForm: EditUserForm = {
   firstName: "",
   lastName: "",
   email: "",
@@ -49,88 +30,81 @@ const EditUser: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<keyof EditUserParams>() as EditUserParams;
 
-  const [form, setForm] = useState<EditUserFormState>(initialForm);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [success, setSuccess] = useState<string>("");
+  const [form, setForm] = useState<EditUserForm>(initialForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const userId = useMemo(() => id, [id]);
-
-  const setField = <K extends keyof EditUserFormState>(
-    key: K,
-    value: EditUserFormState[K]
-  ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const setField = <K extends keyof EditUserForm>(key: K, value: EditUserForm[K]) => {
+    setForm((previous) => ({ ...previous, [key]: value }));
   };
 
   useEffect(() => {
-    const fetchUser = async (): Promise<void> => {
+    let active = true;
+
+    const loadUser = async () => {
       setLoading(true);
       setError("");
+
       try {
-        const { data } = await api.get<UserApiResponse>(`/api/users/${userId}`);
-        const fallbackName = data.name?.trim() || "";
-        const [fallbackFirstName, ...fallbackRest] = fallbackName.split(" ");
-        const fallbackLastName = fallbackRest.join(" ");
+        const user = await userService.getById(id);
+
+        if (!active) {
+          return;
+        }
 
         setForm({
-          firstName: data.firstName || fallbackFirstName || "",
-          lastName: data.lastName || fallbackLastName || "",
-          email: data.email || "",
-          phone: data.phone || "",
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
           password: "",
-          robotId: data.robotId || "",
+          robotId: user.robotId || "",
         });
-      } catch (err: unknown) {
-        if (err instanceof AxiosError) {
-          const apiMessage = (err.response?.data as ApiErrorResponse | undefined)
-            ?.message;
-          setError(apiMessage || "Failed to load user.");
-        } else {
-          setError("Failed to load user.");
+      } catch (loadError) {
+        if (active) {
+          setError(getApiErrorMessage(loadError, "Failed to load the visitor profile."));
         }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
-    void fetchUser();
-  }, [userId]);
+    void loadUser();
 
-  const handleSubmit = async (
-    e: React.FormEvent<HTMLFormElement>
-  ): Promise<void> => {
-    e.preventDefault();
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setSaving(true);
     setError("");
-    setSuccess("");
 
     try {
-      const payload: Record<string, string | null> = {
+      const updatedUser = await userService.update(id, {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        robotId: form.robotId.trim() || null,
+        email: form.email.trim(),
         phone: form.phone.trim(),
-      };
+        password: form.password.trim() || undefined,
+        robotId: form.robotId.trim() || null,
+      });
 
-      if (form.password.trim()) {
-        payload.password = form.password;
-      }
+      logService.record({
+        category: "visit",
+        severity: "success",
+        actor: "Admin",
+        title: "Visitor updated",
+        description: `${updatedUser.firstName} ${updatedUser.lastName} was updated from the admin app.`,
+      });
 
-      await api.put(`/api/users/${userId}`, payload);
-      setSuccess("User updated successfully.");
-      window.setTimeout(() => {
-        navigate("/dashboard?updated=1", { replace: true });
-      }, 700);
-    } catch (err: unknown) {
-      if (err instanceof AxiosError) {
-        const apiMessage = (err.response?.data as ApiErrorResponse | undefined)
-          ?.message;
-        setError(apiMessage || "Failed to update user.");
-      } else {
-        setError("Failed to update user.");
-      }
+      navigate("/users?updated=1", { replace: true });
+    } catch (submitError) {
+      setError(getApiErrorMessage(submitError, "Failed to update the visitor profile."));
     } finally {
       setSaving(false);
     }
@@ -138,125 +112,70 @@ const EditUser: React.FC = () => {
 
   return (
     <AppLayout>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-        className="mx-auto max-w-2xl"
-      >
-        <h1 className="mb-2 text-2xl font-bold text-foreground">Edit User</h1>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Update user profile and robot assignment. Leave password empty to keep
-          the current password unchanged.
-        </p>
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Edit Visitor</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Update visitor details and robot assignment while keeping the current admin flow simple.
+          </p>
+        </div>
+
+        {error ? (
+          <div className="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
 
         {loading ? (
-          <div className="card-elevated p-6 text-sm text-muted-foreground">
-            Loading user details...
-          </div>
+          <div className="card-elevated p-6 text-sm text-muted-foreground">Loading visitor details...</div>
         ) : (
-          <>
-            {error && (
-              <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {error}
+          <div className="card-elevated p-6">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input id="firstName" value={form.firstName} onChange={(event) => setField("firstName", event.target.value)} required />
               </div>
-            )}
-            {success && (
-              <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {success}
+
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input id="lastName" value={form.lastName} onChange={(event) => setField("lastName", event.target.value)} required />
               </div>
-            )}
 
-            <div className="card-elevated p-6">
-              <form
-                onSubmit={handleSubmit}
-                className="grid grid-cols-1 gap-4 md:grid-cols-2"
-              >
-                <div className="space-y-1.5">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    value={form.firstName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setField("firstName", e.target.value)
-                    }
-                    required
-                  />
-                </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} required />
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    value={form.lastName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setField("lastName", e.target.value)
-                    }
-                    required
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input id="phone" value={form.phone} onChange={(event) => setField("phone", event.target.value)} required />
+              </div>
 
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    value={form.email}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setField("email", e.target.value)
-                    }
-                    required
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="robotId">Robot ID</Label>
+                <Input id="robotId" value={form.robotId} onChange={(event) => setField("robotId", event.target.value)} />
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={form.phone}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setField("phone", e.target.value)
-                    }
-                  />
-                </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="password">New Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={form.password}
+                  onChange={(event) => setField("password", event.target.value)}
+                  placeholder="Leave empty to keep the current password"
+                />
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="robotId">Robot ID</Label>
-                  <Input
-                    id="robotId"
-                    value={form.robotId}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setField("robotId", e.target.value)
-                    }
-                  />
-                </div>
-
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label htmlFor="password">New Password (Optional)</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={form.password}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setField("password", e.target.value)
-                    }
-                    placeholder="Leave empty to keep current password"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <Button
-                    type="submit"
-                    disabled={saving}
-                    className="w-full transition-all duration-200 hover:scale-[1.01] hover:shadow-md"
-                  >
-                    {saving ? "Saving changes..." : "Save Changes"}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </>
+              <div className="md:col-span-2">
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Saving changes..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </div>
         )}
-      </motion.div>
+      </div>
     </AppLayout>
   );
 };

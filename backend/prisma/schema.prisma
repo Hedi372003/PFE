@@ -9,28 +9,29 @@ datasource db {
 model Robot {
   id        String   @id @default(cuid()) @db.Text
   name      String   @db.Text
-  robotId   String   @unique @map("robot_id") @db.Text
+  robotId   String   @unique @db.Text
   latitude  Float
   longitude Float
   status    String   @default("offline") @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
 
   @@map("robots")
 }
 
 model User {
-  id        String   @id @default(uuid()) @db.Text
-  firstName String   @map("first_name") @db.Text
-  lastName  String   @map("last_name") @db.Text
-  email     String   @unique @db.Text
-  phone     String   @db.Text
-  password  String   @db.Text
-  role      String   @default("user") @db.Text
-  robotId   String?  @map("robot_id") @db.Text
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
+  id                       String                    @id @default(uuid()) @db.Text
+  firstName                String                    @map("first_name") @db.Text
+  lastName                 String                    @map("last_name") @db.Text
+  email                    String                    @unique @db.Text
+  phone                    String                    @db.Text
+  password                 String                    @db.Text
+  role                     String                    @default("user") @db.Text
+  robotId                  String?                   @map("robot_id") @db.Text
+  isActive                 Boolean                   @default(true) @map("is_active")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @default(now()) @map("updated_at")
+  notificationReadReceipts NotificationReadReceipt[]
 
   @@map("users")
 }
@@ -42,10 +43,96 @@ model Request {
   email     String   @db.Text
   phone     String   @db.Text
   password  String?  @db.Text
+  message   String?  @db.Text
   robotId   String?  @map("robot_id") @db.Text
   status    String   @default("pending") @db.Text
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
   @@map("requests")
+}
+
+model CompanyProfile {
+  id                String   @id @default("default") @db.Text
+  name              String   @db.Text
+  supportEmail      String   @map("support_email") @db.Text
+  supportPhone      String   @map("support_phone") @db.Text
+  hours             String   @db.Text
+  products          String[] @default([])
+  welcomeMessage    String   @map("welcome_message") @db.Text
+  lobbyInstructions String   @map("lobby_instructions") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @default(now()) @map("updated_at")
+
+  @@map("company_profiles")
+}
+
+model Notification {
+  id           String                    @id @default(cuid()) @db.Text
+  title        String                    @db.Text
+  body         String                    @db.Text
+  kind         String                    @default("system") @db.Text
+  priority     String                    @default("info") @db.Text
+  targetRole   String?                   @map("target_role") @db.Text
+  targetUserId String?                   @map("target_user_id") @db.Text
+  metadata     Json?
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @default(now()) @map("updated_at")
+  readReceipts NotificationReadReceipt[]
+
+  @@index([createdAt])
+  @@index([targetRole])
+  @@index([targetUserId])
+  @@map("notifications")
+}
+
+model NotificationReadReceipt {
+  id             String       @id @default(cuid()) @db.Text
+  notificationId String       @map("notification_id") @db.Text
+  userId         String       @map("user_id") @db.Text
+  readAt         DateTime     @default(now()) @map("read_at")
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId])
+  @@map("notification_read_receipts")
+}
+
+model CallSession {
+  id            String        @id @default(cuid()) @db.Text
+  roomId        String        @unique @map("room_id") @db.Text
+  title         String?       @db.Text
+  mode          String        @default("video") @db.Text
+  status        String        @default("scheduled") @db.Text
+  requestId     String?       @map("request_id") @db.Text
+  robotId       String?       @map("robot_id") @db.Text
+  operatorId    String?       @map("operator_id") @db.Text
+  visitorUserId String?       @map("visitor_user_id") @db.Text
+  visitorEmail  String?       @map("visitor_email") @db.Text
+  createdById   String?       @map("created_by_id") @db.Text
+  startedAt     DateTime?     @map("started_at")
+  endedAt       DateTime?     @map("ended_at")
+  metadata      Json?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @default(now()) @map("updated_at")
+  messages      CallMessage[]
+
+  @@index([status])
+  @@index([requestId])
+  @@index([robotId])
+  @@map("call_sessions")
+}
+
+model CallMessage {
+  id         String      @id @default(cuid()) @db.Text
+  sessionId  String      @map("session_id") @db.Text
+  senderId   String?     @map("sender_id") @db.Text
+  senderRole String      @map("sender_role") @db.Text
+  message    String      @db.Text
+  createdAt  DateTime    @default(now()) @map("created_at")
+  session    CallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("call_messages")
 }

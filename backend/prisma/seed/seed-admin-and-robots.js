@@ -2,21 +2,14 @@ require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const prisma = require("../../src/config/prisma");
 const robotsData = require("./test-robots");
+const { DEFAULT_COMPANY_PROFILE } = require("../../src/services/company.service");
+const robotService = require("../../src/services/robot.service");
 
 async function seedRobots() {
   const robots = [];
 
   for (const robot of robotsData) {
-    const upserted = await prisma.robot.upsert({
-      where: { robotId: robot.robotId },
-      update: {
-        name: robot.name,
-        latitude: robot.latitude,
-        longitude: robot.longitude,
-        status: robot.status,
-      },
-      create: robot,
-    });
+    const upserted = await robotService.upsertRobot(robot);
 
     robots.push(upserted);
   }
@@ -38,7 +31,6 @@ async function seedAdmin(defaultRobotId) {
       role: "admin",
       password: passwordHash,
       robotId: defaultRobotId || null,
-      isActive: true,
     },
     create: {
       firstName: "System",
@@ -48,7 +40,6 @@ async function seedAdmin(defaultRobotId) {
       password: passwordHash,
       role: "admin",
       robotId: defaultRobotId || null,
-      isActive: true,
     },
   });
 
@@ -58,6 +49,11 @@ async function seedAdmin(defaultRobotId) {
 async function main() {
   const robots = await seedRobots();
   const { admin, adminEmail, adminPassword } = await seedAdmin(robots[0]?.id);
+  await prisma.companyProfile.upsert({
+    where: { id: DEFAULT_COMPANY_PROFILE.id },
+    update: {},
+    create: DEFAULT_COMPANY_PROFILE,
+  });
 
   console.log("Seed finished.");
   console.log(`Admin: ${adminEmail} / ${adminPassword}`);

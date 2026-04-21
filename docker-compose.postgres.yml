@@ -8,9 +8,12 @@ services:
       POSTGRES_PASSWORD: pfe_password
       POSTGRES_DB: telepresence_db
     ports:
-      - "55432:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pfe_user -d telepresence_db"]
       interval: 10s

@@ -19,7 +19,6 @@ export interface UserDraft {
   lastName: string;
   email: string;
   phone: string;
-  password: string;
   robotId: string;
 }
 

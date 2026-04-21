@@ -1,3 +1,4 @@
+const { randomBytes } = require("crypto");
 const bcrypt = require("bcryptjs");
 const { Prisma } = require("@prisma/client");
 const prisma = require("../config/prisma");
@@ -40,6 +41,8 @@ const parseNameFallback = (name) => {
   };
 };
 
+const generateManagedPassword = () => randomBytes(24).toString("hex");
+
 exports.createUser = async (req, res) => {
   try {
     const {
@@ -58,16 +61,16 @@ exports.createUser = async (req, res) => {
     const normalizedLastName = (lastName || fallback.lastName || "").trim();
     const normalizedEmail = String(email || "").trim().toLowerCase();
     const normalizedPhone = String(phone || "").trim();
+    const passwordToStore = String(password || "").trim() || generateManagedPassword();
 
     if (
       !normalizedFirstName ||
       !normalizedLastName ||
       !normalizedEmail ||
-      !normalizedPhone ||
-      !password
+      !normalizedPhone
     ) {
       return res.status(400).json({
-        message: "firstName, lastName, email, phone and password are required",
+        message: "firstName, lastName, email and phone are required",
       });
     }
 
@@ -77,7 +80,7 @@ exports.createUser = async (req, res) => {
         lastName: normalizedLastName,
         email: normalizedEmail,
         phone: normalizedPhone,
-        password: await bcrypt.hash(password, 10),
+        password: await bcrypt.hash(passwordToStore, 10),
         role: "user",
         robotId: (robotId || robotAssigned || "").trim() || null,
       },

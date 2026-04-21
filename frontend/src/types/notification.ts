@@ -4,7 +4,6 @@ export type SocketConnectionStatus =
   | "idle"
   | "connecting"
   | "connected"
-  | "mock"
   | "disconnected"
   | "error";
 
@@ -16,6 +15,8 @@ export interface NotificationItem {
   kind: NotificationKind;
   createdAt: string;
   read: boolean;
+  updatedAt?: string;
+  readAt?: string | null;
 }
 
 export interface SocketSnapshot {

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight, Pencil, Search, Trash2, UsersRound } from "lucide-react";
+import { ArrowRight, Pencil, Search, Trash2, UserPlus2, UserRoundX, UsersRound } from "lucide-react";
 
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { NotificationDot } from "@/components/notifications/NotificationDot";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { useNotificationBadges } from "@/hooks/useNotificationBadges";
 import { formatDateTime } from "@/lib/utils";
 import { getApiErrorMessage, logService, userService } from "@/services/api";
 import type { UserRecord } from "@/types/user";
@@ -13,6 +16,7 @@ import type { UserRecord } from "@/types/user";
 const UsersPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { badgeState } = useNotificationBadges();
 
   const [visitors, setVisitors] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +24,7 @@ const UsersPage: React.FC = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [activeVisitorId, setActiveVisitorId] = useState<string | null>(null);
+  const [visitorToDelete, setVisitorToDelete] = useState<UserRecord | null>(null);
 
   const loadVisitors = async () => {
     setLoading(true);
@@ -73,7 +78,24 @@ const UsersPage: React.FC = () => {
     );
   }, [search, visitors]);
 
-  const assignedCount = visitors.filter((visitor) => Boolean(visitor.robotId)).length;
+  const newTodayCount = useMemo(() => {
+    const today = new Date().toDateString();
+
+    return visitors.filter((visitor) => {
+      if (!visitor.createdAt) {
+        return false;
+      }
+
+      return new Date(visitor.createdAt).toDateString() === today;
+    }).length;
+  }, [visitors]);
+
+  const assignedCount = useMemo(
+    () => visitors.filter((visitor) => Boolean(visitor.robotId)).length,
+    [visitors],
+  );
+
+  const unassignedCount = Math.max(0, visitors.length - assignedCount);
 
   const handleDelete = async (visitor: UserRecord) => {
     setActiveVisitorId(visitor.id);
@@ -91,8 +113,10 @@ const UsersPage: React.FC = () => {
         description: `${visitor.firstName} ${visitor.lastName} was removed from visitor management.`,
       });
       window.setTimeout(() => setMessage(""), 2500);
+      return true;
     } catch (deleteError) {
       setError(getApiErrorMessage(deleteError, "Failed to remove the visitor."));
+      return false;
     } finally {
       setActiveVisitorId(null);
     }
@@ -112,11 +136,17 @@ const UsersPage: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Link to="/requests">
-                <Button variant="outline" className="gap-2">
+              <Link to="/requests" className="relative">
+                <Button variant="outline" className="gap-2 pr-5">
                   <ArrowRight className="h-4 w-4" />
                   Review Requests
                 </Button>
+                {badgeState.requests ? (
+                  <NotificationDot
+                    className="absolute right-2 top-2 ring-slate-100"
+                    label="Unread request notifications"
+                  />
+                ) : null}
               </Link>
               <Link to="/users/add">
                 <Button>Add Visitor</Button>
@@ -137,26 +167,33 @@ const UsersPage: React.FC = () => {
           </div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Approved Visitors"
             value={loading ? "..." : visitors.length}
-            helper="Profiles available for telepresence sessions."
+            helper="Profiles currently available in visitor management."
             icon={UsersRound}
+          />
+          <MetricCard
+            label="Created Today"
+            value={loading ? "..." : newTodayCount}
+            helper="New visitor profiles added during the current day."
+            icon={UserPlus2}
+            tone={newTodayCount > 0 ? "success" : "default"}
           />
           <MetricCard
             label="Robot Assigned"
             value={loading ? "..." : assignedCount}
             helper="Visitors already linked to a robot identity."
             icon={UsersRound}
-            tone="success"
+            tone={assignedCount > 0 ? "success" : "default"}
           />
           <MetricCard
             label="Unassigned"
-            value={loading ? "..." : Math.max(0, visitors.length - assignedCount)}
-            helper="Profiles still waiting for fleet assignment."
-            icon={UsersRound}
-            tone="warning"
+            value={loading ? "..." : unassignedCount}
+            helper="Visitors still waiting for fleet assignment."
+            icon={UserRoundX}
+            tone={unassignedCount > 0 ? "warning" : "default"}
           />
         </section>
 
@@ -203,13 +240,13 @@ const UsersPage: React.FC = () => {
                       </Button>
                     </Link>
                     <Button
-                      variant="ghost"
-                      className="gap-2 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                      variant="outline"
+                      className="gap-2 border-rose-200 text-rose-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
                       disabled={activeVisitorId === visitor.id}
-                      onClick={() => void handleDelete(visitor)}
+                      onClick={() => setVisitorToDelete(visitor)}
                     >
                       <Trash2 className="h-4 w-4" />
-                      Remove
+                      Delete
                     </Button>
                   </div>
                 </div>
@@ -218,6 +255,30 @@ const UsersPage: React.FC = () => {
           )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={!!visitorToDelete}
+        title="Delete visitor profile?"
+        description={
+          visitorToDelete
+            ? `You are about to permanently delete ${visitorToDelete.firstName} ${visitorToDelete.lastName} from visitor management.`
+            : ""
+        }
+        confirmationMessage="This will remove the visitor record and any current robot assignment linked to this profile."
+        confirmText="Delete Visitor"
+        cancelText="Cancel"
+        loading={activeVisitorId === visitorToDelete?.id}
+        loadingText="Deleting visitor..."
+        onCancel={() => setVisitorToDelete(null)}
+        onConfirm={async () => {
+          if (!visitorToDelete) return;
+
+          const deleted = await handleDelete(visitorToDelete);
+          if (deleted) {
+            setVisitorToDelete(null);
+          }
+        }}
+      />
     </AppLayout>
   );
 };

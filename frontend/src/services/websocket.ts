@@ -1,110 +1,18 @@
-import { createId } from "@/lib/utils";
-import type {
-  NotificationItem,
-  SocketConnectionStatus,
-  SocketSnapshot,
-} from "@/types/notification";
+import { authService, notificationService } from "@/services/api";
+import type { NotificationItem, SocketConnectionStatus, SocketSnapshot } from "@/types/notification";
 
-const STORAGE_KEY = "telebot.notifications";
-const MAX_NOTIFICATIONS = 20;
-
-const defaultNotifications: NotificationItem[] = [
-  {
-    id: createId("notification"),
-    title: "Robot fleet check complete",
-    body: "All registered telepresence robots finished the latest status sync.",
-    priority: "success",
-    kind: "robot",
-    createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-    read: false,
-  },
-  {
-    id: createId("notification"),
-    title: "Pending visitor approval",
-    body: "A new visitor request is waiting for admin validation.",
-    priority: "warning",
-    kind: "visitor",
-    createdAt: new Date(Date.now() - 1000 * 60 * 34).toISOString(),
-    read: false,
-  },
-  {
-    id: createId("notification"),
-    title: "Communication room ready",
-    body: "Audio and video channels are configured for the next call.",
-    priority: "info",
-    kind: "communication",
-    createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-    read: true,
-  },
-];
+const MAX_NOTIFICATIONS = 50;
 
 type SnapshotListener = (snapshot: SocketSnapshot) => void;
-
-function readNotifications(): NotificationItem[] {
-  try {
-    const rawValue = localStorage.getItem(STORAGE_KEY);
-    if (!rawValue) {
-      return defaultNotifications;
-    }
-
-    return JSON.parse(rawValue) as NotificationItem[];
-  } catch {
-    return defaultNotifications;
-  }
-}
-
-function persistNotifications(notifications: NotificationItem[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-}
-
-function buildMockNotification(): NotificationItem {
-  const templates: Array<Omit<NotificationItem, "id" | "createdAt" | "read">> = [
-    {
-      title: "Robot battery alert",
-      body: "Robot R-204 dropped below the recommended battery threshold.",
-      priority: "warning",
-      kind: "robot",
-    },
-    {
-      title: "Visitor arrived in queue",
-      body: "A visitor requested a live telepresence check-in from reception.",
-      priority: "info",
-      kind: "visitor",
-    },
-    {
-      title: "Call room handover",
-      body: "The current communication room is free for the next operator.",
-      priority: "success",
-      kind: "communication",
-    },
-    {
-      title: "System reminder",
-      body: "Review the company welcome instructions before the next demo.",
-      priority: "info",
-      kind: "system",
-    },
-  ];
-
-  const randomTemplate = templates[Math.floor(Math.random() * templates.length)] || templates[0];
-
-  return {
-    id: createId("notification"),
-    createdAt: new Date().toISOString(),
-    read: false,
-    ...randomTemplate,
-  };
-}
 
 class WebSocketService {
   private socket: WebSocket | null = null;
 
   private listeners = new Set<SnapshotListener>();
 
-  private notifications = readNotifications();
+  private notifications: NotificationItem[] = [];
 
   private status: SocketConnectionStatus = "idle";
-
-  private mockTimer: number | null = null;
 
   private connectionRefs = 0;
 
@@ -112,7 +20,7 @@ class WebSocketService {
     this.connectionRefs += 1;
 
     if (this.connectionRefs === 1) {
-      this.start();
+      void this.start();
     } else {
       this.emit();
     }
@@ -143,32 +51,18 @@ class WebSocketService {
     };
   }
 
-  markAsRead(id: string): void {
-    this.notifications = this.notifications.map((item) =>
-      item.id === id ? { ...item, read: true } : item,
-    );
-    persistNotifications(this.notifications);
-    this.emit();
+  async markAsRead(id: string): Promise<void> {
+    const updatedNotification = await notificationService.markAsRead(id);
+    this.upsertNotification(updatedNotification);
   }
 
-  markAllAsRead(): void {
-    this.notifications = this.notifications.map((item) => ({ ...item, read: true }));
-    persistNotifications(this.notifications);
-    this.emit();
-  }
-
-  pushNotification(item: Omit<NotificationItem, "id" | "createdAt" | "read">): void {
-    this.notifications = [
-      {
-        id: createId("notification"),
-        createdAt: new Date().toISOString(),
-        read: false,
-        ...item,
-      },
-      ...this.notifications,
-    ].slice(0, MAX_NOTIFICATIONS);
-
-    persistNotifications(this.notifications);
+  async markAllAsRead(): Promise<void> {
+    await notificationService.markAllAsRead();
+    this.notifications = this.notifications.map((item) => ({
+      ...item,
+      read: true,
+      readAt: item.readAt || new Date().toISOString(),
+    }));
     this.emit();
   }
 
@@ -178,23 +72,34 @@ class WebSocketService {
     }
   }
 
-  private start(): void {
-    const websocketUrl =
-      import.meta.env.VITE_WS_URL?.trim() ||
-      `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:5000/ws?role=admin`;
+  private async start(): Promise<void> {
+    const token = authService.getStoredToken();
 
-    if (!websocketUrl) {
-      this.startMockStream();
+    if (!token) {
+      this.notifications = [];
+      this.status = "idle";
+      this.emit();
       return;
     }
+
+    await this.syncNotifications();
 
     this.status = "connecting";
     this.emit();
 
     try {
-      this.socket = new WebSocket(websocketUrl);
+      this.socket = new WebSocket(this.buildWebSocketUrl());
+
       this.socket.onopen = () => {
         this.status = "connected";
+        this.send({
+          type: "authenticate",
+          token,
+        });
+        this.send({
+          type: "subscribe.notifications",
+          enabled: true,
+        });
         this.emit();
       };
 
@@ -202,45 +107,47 @@ class WebSocketService {
         try {
           const parsed = JSON.parse(event.data) as Partial<NotificationItem> & { type?: string };
 
-          if (parsed.type === "notification" || parsed.title) {
-            this.pushNotification({
-              title: parsed.title || "Live update",
-              body: parsed.body || "A new real-time event was received.",
+          if (parsed.type === "notification" && parsed.id && parsed.title && parsed.body && parsed.createdAt) {
+            this.upsertNotification({
+              id: parsed.id,
+              title: parsed.title,
+              body: parsed.body,
               priority: parsed.priority || "info",
               kind: parsed.kind || "system",
+              createdAt: parsed.createdAt,
+              updatedAt: parsed.updatedAt,
+              read: Boolean(parsed.read),
+              readAt: parsed.readAt || null,
             });
           }
+
+          if (parsed.type === "auth.error") {
+            this.status = "error";
+            this.emit();
+          }
         } catch {
-          this.pushNotification({
-            title: "Live update received",
-            body: "A WebSocket event arrived but could not be parsed cleanly.",
-            priority: "warning",
-            kind: "system",
-          });
+          this.status = "error";
+          this.emit();
         }
       };
 
       this.socket.onerror = () => {
         this.status = "error";
         this.emit();
-        this.startMockStream();
       };
 
       this.socket.onclose = () => {
-        this.status = "disconnected";
+        this.socket = null;
+        this.status = this.connectionRefs > 0 ? "disconnected" : "idle";
         this.emit();
       };
     } catch {
-      this.startMockStream();
+      this.status = "error";
+      this.emit();
     }
   }
 
   private stop(): void {
-    if (this.mockTimer) {
-      window.clearInterval(this.mockTimer);
-      this.mockTimer = null;
-    }
-
     if (this.socket) {
       this.socket.close();
       this.socket = null;
@@ -250,19 +157,40 @@ class WebSocketService {
     this.emit();
   }
 
-  private startMockStream(): void {
-    if (this.mockTimer) {
-      return;
+  private buildWebSocketUrl(): string {
+    const configuredUrl = import.meta.env.VITE_WS_URL?.trim();
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+    if (configuredUrl) {
+      return configuredUrl;
     }
 
-    this.status = "mock";
-    this.emit();
+    if (apiBaseUrl) {
+      const resolvedApiUrl = new URL(apiBaseUrl, window.location.origin);
+      resolvedApiUrl.protocol = resolvedApiUrl.protocol === "https:" ? "wss:" : "ws:";
+      resolvedApiUrl.pathname = "/ws";
+      resolvedApiUrl.search = "";
+      return resolvedApiUrl.toString();
+    }
 
-    this.mockTimer = window.setInterval(() => {
-      this.notifications = [buildMockNotification(), ...this.notifications].slice(0, MAX_NOTIFICATIONS);
-      persistNotifications(this.notifications);
-      this.emit();
-    }, 25000);
+    return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:5000/ws`;
+  }
+
+  private async syncNotifications(): Promise<void> {
+    try {
+      this.notifications = await notificationService.list({ limit: MAX_NOTIFICATIONS });
+    } catch {
+      this.notifications = [];
+    }
+
+    this.emit();
+  }
+
+  private upsertNotification(notification: NotificationItem): void {
+    this.notifications = [notification, ...this.notifications.filter((item) => item.id !== notification.id)]
+      .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+      .slice(0, MAX_NOTIFICATIONS);
+    this.emit();
   }
 
   private emit(): void {

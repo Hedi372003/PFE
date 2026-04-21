@@ -7,7 +7,6 @@ export interface VisitorRequest {
   email: string;
   phone: string;
   message: string;
-  password?: string;
   status: RequestStatus;
   createdAt?: string;
   updatedAt?: string;
@@ -18,6 +17,5 @@ export interface VisitorRequestDraft {
   lastName: string;
   email: string;
   phone: string;
-  password: string;
   message: string;
 }

@@ -29,7 +29,7 @@ const initialMessages: ChatMessage[] = [
 
 const Communication: React.FC = () => {
   const location = useLocation();
-  const { status, pushNotification } = useSocket();
+  const { status } = useSocket();
   const state = (location.state as CommunicationLocationState | null) || null;
 
   const [callMode, setCallMode] = useState<CallMode>(state?.mode || "video");
@@ -94,13 +94,6 @@ const Communication: React.FC = () => {
         actor: "Operator",
         title: `${mode === "video" ? "Video" : "Audio"} call started`,
         description: `Communication session opened for ${visitorLabel}.`,
-      });
-
-      pushNotification({
-        title: "Communication session live",
-        body: `${mode === "video" ? "Video" : "Audio"} communication started for ${visitorLabel}.`,
-        priority: "success",
-        kind: "communication",
       });
     } catch (sessionError) {
       setCallState("error");

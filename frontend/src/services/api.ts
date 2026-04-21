@@ -7,6 +7,7 @@ import type {
 } from "@/types/auth";
 import type { CompanyContent } from "@/types/company";
 import type { ActivityLog } from "@/types/log";
+import type { NotificationItem } from "@/types/notification";
 import type {
   VisitorRequest,
   VisitorRequestDraft,
@@ -249,6 +250,37 @@ export const robotService = {
 
   async remove(id: string): Promise<void> {
     await api.delete(`/api/robots/${id}`);
+  },
+};
+
+export const notificationService = {
+  async list(params?: { limit?: number; unreadOnly?: boolean }): Promise<NotificationItem[]> {
+    const { data } = await api.get<NotificationItem[]>("/api/notifications", {
+      params: {
+        ...(params?.limit ? { limit: params.limit } : {}),
+        ...(params?.unreadOnly !== undefined ? { unreadOnly: params.unreadOnly } : {}),
+      },
+    });
+
+    return data.map((notification) => ({
+      ...notification,
+      read: Boolean(notification.read),
+      readAt: notification.readAt || null,
+    }));
+  },
+
+  async markAsRead(id: string): Promise<NotificationItem> {
+    const { data } = await api.post<NotificationItem>(`/api/notifications/${id}/read`);
+    return {
+      ...data,
+      read: Boolean(data.read),
+      readAt: data.readAt || null,
+    };
+  },
+
+  async markAllAsRead(): Promise<{ updatedCount: number }> {
+    const { data } = await api.post<{ updatedCount: number }>("/api/notifications/read-all");
+    return data;
   },
 };
 

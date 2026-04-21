@@ -2,21 +2,34 @@ import { Bell, RadioTower } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
+import { NotificationDot } from "@/components/notifications/NotificationDot";
 import { Button } from "@/components/ui/button";
-import { useSocket } from "@/hooks/useSocket";
 import { formatRelativeTime } from "@/lib/utils";
+import type { NotificationItem, SocketConnectionStatus } from "@/types/notification";
 
 const connectionClasses = {
   idle: "bg-slate-100 text-slate-700",
   connecting: "bg-sky-100 text-sky-700",
   connected: "bg-emerald-100 text-emerald-700",
-  mock: "bg-amber-100 text-amber-700",
   disconnected: "bg-slate-100 text-slate-700",
   error: "bg-rose-100 text-rose-700",
 };
 
-export function NotificationDropdown() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, status } = useSocket();
+interface NotificationDropdownProps {
+  notifications: NotificationItem[];
+  unreadCount: number;
+  status: SocketConnectionStatus;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+}
+
+export function NotificationDropdown({
+  notifications,
+  unreadCount,
+  markAsRead,
+  markAllAsRead,
+  status,
+}: NotificationDropdownProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -66,7 +79,7 @@ export function NotificationDropdown() {
                 </div>
               </div>
 
-              <Button variant="ghost" size="sm" onClick={markAllAsRead}>
+              <Button variant="ghost" size="sm" onClick={() => void markAllAsRead()}>
                 Mark all read
               </Button>
             </div>
@@ -84,11 +97,14 @@ export function NotificationDropdown() {
                     className={`mb-2 w-full rounded-2xl border p-3 text-left last:mb-0 ${
                       notification.read ? "border-border/70 bg-slate-50" : "border-sky-200 bg-sky-50/70"
                     }`}
-                    onClick={() => markAsRead(notification.id)}
+                    onClick={() => void markAsRead(notification.id)}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1">
-                        <p className="font-medium text-foreground">{notification.title}</p>
+                        <div className="flex items-center gap-2">
+                          {!notification.read ? <NotificationDot className="h-2 w-2 ring-0" /> : null}
+                          <p className="font-medium text-foreground">{notification.title}</p>
+                        </div>
                         <p className="text-sm text-muted-foreground">{notification.body}</p>
                       </div>
                       <span className="shrink-0 text-xs text-muted-foreground">

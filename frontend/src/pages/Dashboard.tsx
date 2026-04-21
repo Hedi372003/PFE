@@ -161,7 +161,7 @@ const Dashboard: React.FC = () => {
           <MetricCard
             label="Unread Alerts"
             value={unreadCount}
-            helper="WebSocket-powered notification stream for admin awareness."
+            helper="Database-backed notifications with live realtime updates."
             icon={BellRing}
             tone={unreadCount > 0 ? "critical" : "default"}
           />

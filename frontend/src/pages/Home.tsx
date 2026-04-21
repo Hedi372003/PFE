@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 import {
   Bot,
   Wifi,
@@ -12,8 +11,6 @@ import {
   X,
   Send,
   CalendarCheck,
-  Eye,
-  EyeOff,
   Loader2,
 } from "lucide-react";
 
@@ -52,7 +49,6 @@ interface ReserveFormState {
   lastName: string;
   email: string;
   phone: string;
-  password: string;
   message: string;
 }
 
@@ -61,12 +57,10 @@ const initialReserveForm: ReserveFormState = {
   lastName: "",
   email: "",
   phone: "",
-  password: "",
   message: "",
 };
 
 const Home: React.FC = () => {
-  const navigate = useNavigate();
   const company = useMemo(() => companyService.load(), []);
 
   const [showReserveForm, setShowReserveForm] = useState(false);
@@ -74,7 +68,6 @@ const Home: React.FC = () => {
   const [reserveLoading, setReserveLoading] = useState(false);
   const [reserveError, setReserveError] = useState("");
   const [reserveToast, setReserveToast] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
 
   const closeReserveModal = () => {
     setShowReserveForm(false);
@@ -130,13 +123,6 @@ const Home: React.FC = () => {
             transition={{ delay: 0.4 }}
             className="flex flex-col justify-center gap-6 sm:flex-row"
           >
-            <Button
-              size="lg"
-              className="bg-white px-10 py-6 text-lg font-semibold text-blue-700 hover:bg-gray-100"
-              onClick={() => navigate("/login")}
-            >
-              Open Admin App
-            </Button>
 
             <Button
               size="lg"
@@ -248,7 +234,8 @@ const Home: React.FC = () => {
                 <h2 className="text-xl font-bold text-foreground">Request a Visit</h2>
               </div>
               <p className="mb-6 text-sm text-muted-foreground">
-                Fill out this form so the administration team can review and schedule your telepresence visit.
+                Fill out this form so the administration team can review your request, schedule the
+                visit, and prepare access without asking you to create credentials up front.
               </p>
 
               {reserveError ? (
@@ -257,7 +244,7 @@ const Home: React.FC = () => {
                 </div>
               ) : null}
 
-              <form onSubmit={handleReserveSubmit} className="space-y-4">
+              <form onSubmit={handleReserveSubmit} className="space-y-5">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label>First Name</Label>
@@ -301,25 +288,9 @@ const Home: React.FC = () => {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label>Password</Label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Password"
-                      value={reserveForm.password}
-                      onChange={(event) => setReserveForm({ ...reserveForm, password: event.target.value })}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((previous) => !previous)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+                  Access details are prepared by the administration team after approval. Only your
+                  contact information and visit purpose are needed here.
                 </div>
 
                 <div className="space-y-1.5">

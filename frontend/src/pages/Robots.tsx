@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { RobotStatusBadge } from "@/components/robot/RobotStatusBadge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ const Robots: React.FC = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [activeRobotId, setActiveRobotId] = useState<string | null>(null);
+  const [robotToDelete, setRobotToDelete] = useState<RobotRecord | null>(null);
 
   const loadRobots = async () => {
     setLoading(true);
@@ -94,6 +96,8 @@ const Robots: React.FC = () => {
     try {
       await robotService.remove(robot.id);
       setRobots((previous) => previous.filter((item) => item.id !== robot.id));
+      setMessage(`${robot.name} removed from fleet.`);
+      window.setTimeout(() => setMessage(""), 2500);
       logService.record({
         category: "robot",
         severity: "warning",
@@ -101,8 +105,10 @@ const Robots: React.FC = () => {
         title: "Robot removed from fleet",
         description: `${robot.name} (${robot.robotId}) was removed from the administration console.`,
       });
+      return true;
     } catch (deleteError) {
       setError(getApiErrorMessage(deleteError, "Unable to remove this robot right now."));
+      return false;
     } finally {
       setActiveRobotId(null);
     }
@@ -231,10 +237,10 @@ const Robots: React.FC = () => {
                       </Button>
 
                       <Button
-                        variant="ghost"
-                        className="gap-2 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                        variant="outline"
+                        className="gap-2 border-rose-200 text-rose-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
                         disabled={activeRobotId === robot.id}
-                        onClick={() => void handleDelete(robot)}
+                        onClick={() => setRobotToDelete(robot)}
                       >
                         <Trash2 className="h-4 w-4" />
                         Remove
@@ -247,6 +253,30 @@ const Robots: React.FC = () => {
           )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={!!robotToDelete}
+        title="Delete robot from fleet?"
+        description={
+          robotToDelete
+            ? `You are about to permanently remove ${robotToDelete.name} (${robotToDelete.robotId}) from the administration console.`
+            : ""
+        }
+        confirmationMessage="This action deletes the robot record from the fleet view and cannot be undone."
+        confirmText="Delete Robot"
+        cancelText="Cancel"
+        loading={activeRobotId === robotToDelete?.id}
+        loadingText="Deleting robot..."
+        onCancel={() => setRobotToDelete(null)}
+        onConfirm={async () => {
+          if (!robotToDelete) return;
+
+          const deleted = await handleDelete(robotToDelete);
+          if (deleted) {
+            setRobotToDelete(null);
+          }
+        }}
+      />
     </AppLayout>
   );
 };

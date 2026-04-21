@@ -16,33 +16,36 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
+import { NotificationDot } from "@/components/notifications/NotificationDot";
 import { Button } from "@/components/ui/button";
+import { useNotificationBadges, type NotificationBadgeKey } from "@/hooks/useNotificationBadges";
 import type { AuthUser } from "@/types/auth";
 
 interface NavigationItem {
   title: string;
   url: string;
   icon: ComponentType<{ className?: string }>;
+  badgeKey?: NotificationBadgeKey;
 }
 
 const adminNavItems: NavigationItem[] = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Visitors", url: "/users", icon: UsersRound },
-  { title: "Requests", url: "/requests", icon: Waypoints },
-  { title: "Communication", url: "/communication", icon: MessageSquareText },
-  { title: "Robot Control", url: "/robot-control", icon: Wrench },
-  { title: "Robots", url: "/robots", icon: Bot },
+  { title: "Requests", url: "/requests", icon: Waypoints, badgeKey: "requests" },
+
+  { title: "Robot Control", url: "/robot-control", icon: Wrench, badgeKey: "robots" },
+  { title: "Robots", url: "/robots", icon: Bot, badgeKey: "robots" },
   { title: "Company CMS", url: "/company-cms", icon: Building2 },
-  { title: "Logs", url: "/logs", icon: BookOpenText },
+  { title: "Logs", url: "/logs", icon: BookOpenText, badgeKey: "logs" },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const operatorNavItems: NavigationItem[] = [
   { title: "Dashboard", url: "/operator", icon: LayoutDashboard },
-  { title: "Communication", url: "/communication", icon: MessageSquareText },
-  { title: "Robot Control", url: "/robot-control", icon: Wrench },
-  { title: "Robots", url: "/robots", icon: Bot },
-  { title: "Logs", url: "/logs", icon: BookOpenText },
+  { title: "Communication", url: "/communication", icon: MessageSquareText, badgeKey: "communication" },
+  { title: "Robot Control", url: "/robot-control", icon: Wrench, badgeKey: "robots" },
+  { title: "Robots", url: "/robots", icon: Bot, badgeKey: "robots" },
+  { title: "Logs", url: "/logs", icon: BookOpenText, badgeKey: "logs" },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -60,6 +63,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { badgeState, notifications, unreadCount, markAsRead, markAllAsRead, status } =
+    useNotificationBadges();
 
   const user = getStoredUser();
   const navItems = user?.role === "admin" ? adminNavItems : operatorNavItems;
@@ -105,6 +110,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             {navItems.map((item) => {
               const active =
                 location.pathname === item.url || location.pathname.startsWith(`${item.url}/`);
+              const showBadge = item.badgeKey ? badgeState[item.badgeKey] : false;
 
               return (
                 <li key={item.url}>
@@ -114,7 +120,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       active ? "bg-slate-800 text-white shadow-sm" : "text-slate-300 hover:bg-slate-900"
                     }`}
                   >
-                    <item.icon className="h-5 w-5 shrink-0" />
+                    <span className="relative flex shrink-0">
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      {showBadge ? (
+                        <NotificationDot
+                          className="absolute -right-1 -top-1 ring-slate-950"
+                          label={`Unread alerts in ${item.title}`}
+                        />
+                      ) : null}
+                    </span>
                     {sidebarOpen ? <span className="truncate">{item.title}</span> : null}
                   </Link>
                 </li>
@@ -143,7 +157,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
 
             <div className="relative flex items-center gap-3">
-              <NotificationDropdown />
+              <NotificationDropdown
+                notifications={notifications}
+                unreadCount={unreadCount}
+                status={status}
+                markAsRead={markAsRead}
+                markAllAsRead={markAllAsRead}
+              />
 
               <button
                 type="button"

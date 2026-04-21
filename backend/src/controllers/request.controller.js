@@ -1,8 +1,7 @@
 const prisma = require("../config/prisma");
 const notificationService = require("../services/notification.service");
 
-const mapRequest = (request, includePassword = false) => {
-  const mapped = {
+const mapRequest = (request) => ({
     id: request.id,
     firstName: request.firstName,
     lastName: request.lastName,
@@ -12,14 +11,7 @@ const mapRequest = (request, includePassword = false) => {
     status: request.status,
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
-  };
-
-  if (includePassword) {
-    mapped.password = request.password || "";
-  }
-
-  return mapped;
-};
+});
 
 exports.getPendingRequests = async (req, res) => {
   try {
@@ -28,7 +20,7 @@ exports.getPendingRequests = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json(requests.map((request) => mapRequest(request, true)));
+    return res.json(requests.map(mapRequest));
   } catch (error) {
     console.error("getPendingRequests error:", error);
     return res.status(500).json({ message: "Failed to fetch requests" });
@@ -37,12 +29,12 @@ exports.getPendingRequests = async (req, res) => {
 
 exports.createRequest = async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, password, message } = req.body;
+    const { firstName, lastName, email, phone, message } = req.body;
     const normalizedMessage = String(message || "").trim();
 
-    if (!firstName || !lastName || !email || !phone || !password || !normalizedMessage) {
+    if (!firstName || !lastName || !email || !phone || !normalizedMessage) {
       return res.status(400).json({
-        message: "firstName, lastName, email, phone, password and message are required",
+        message: "firstName, lastName, email, phone and message are required",
       });
     }
 
@@ -52,7 +44,6 @@ exports.createRequest = async (req, res) => {
         lastName: String(lastName).trim(),
         email: String(email).trim().toLowerCase(),
         phone: String(phone).trim(),
-        password: String(password),
         message: normalizedMessage,
         status: "pending",
       },

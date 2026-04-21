@@ -1,5 +1,6 @@
+import { ClipboardPen, Cpu, Save } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ interface EditUserParams {
 }
 
 type EditUserForm = Required<Pick<UserUpdateInput, "firstName" | "lastName" | "email" | "phone">> & {
-  password: string;
   robotId: string;
 };
 
@@ -22,7 +22,6 @@ const initialForm: EditUserForm = {
   lastName: "",
   email: "",
   phone: "",
-  password: "",
   robotId: "",
 };
 
@@ -58,7 +57,6 @@ const EditUser: React.FC = () => {
           lastName: user.lastName,
           email: user.email,
           phone: user.phone,
-          password: "",
           robotId: user.robotId || "",
         });
       } catch (loadError) {
@@ -90,7 +88,6 @@ const EditUser: React.FC = () => {
         lastName: form.lastName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        password: form.password.trim() || undefined,
         robotId: form.robotId.trim() || null,
       });
 
@@ -112,13 +109,22 @@ const EditUser: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Edit Visitor</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Update visitor details and robot assignment while keeping the current admin flow simple.
-          </p>
-        </div>
+      <div className="mx-auto max-w-5xl space-y-6">
+        <section className="card-elevated p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground">Edit Visitor</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Update visitor profile details, keep contact records accurate, and manage the robot
+                link without exposing access credentials in the admin form.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+              Password changes are no longer managed from this screen.
+            </div>
+          </div>
+        </section>
 
         {error ? (
           <div className="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
@@ -129,50 +135,125 @@ const EditUser: React.FC = () => {
         {loading ? (
           <div className="card-elevated p-6 text-sm text-muted-foreground">Loading visitor details...</div>
         ) : (
-          <div className="card-elevated p-6">
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" value={form.firstName} onChange={(event) => setField("firstName", event.target.value)} required />
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+            <section className="card-elevated p-6">
+              <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold text-foreground">Visitor profile</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Keep the visitor record current so assignments, communication history, and routing
+                    remain accurate across the admin workspace.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      value={form.firstName}
+                      onChange={(event) => setField("firstName", event.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      value={form.lastName}
+                      onChange={(event) => setField("lastName", event.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={form.email}
+                      onChange={(event) => setField("email", event.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={form.phone}
+                      onChange={(event) => setField("phone", event.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-border/70 bg-slate-50 p-5">
+                  <div className="space-y-1">
+                    <h3 className="text-base font-semibold text-foreground">Robot assignment</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Update the robot link if this visitor has moved to a different telepresence unit,
+                      or clear it to leave the visitor unassigned.
+                    </p>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <Label htmlFor="robotId">Robot ID</Label>
+                    <Input
+                      id="robotId"
+                      value={form.robotId}
+                      onChange={(event) => setField("robotId", event.target.value)}
+                      placeholder="Optional robot assignment"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col-reverse gap-3 border-t border-border/70 pt-6 sm:flex-row sm:justify-end">
+                  <Link to="/users">
+                    <Button type="button" variant="outline" className="w-full sm:w-auto">
+                      Cancel
+                    </Button>
+                  </Link>
+                  <Button type="submit" className="w-full gap-2 sm:w-auto" disabled={saving}>
+                    <Save className="h-4 w-4" />
+                    {saving ? "Saving changes..." : "Save Changes"}
+                  </Button>
+                </div>
+              </form>
+            </section>
+
+            <aside className="space-y-4">
+              <div className="card-elevated p-5">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl bg-slate-950 p-3 text-white">
+                    <ClipboardPen className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">Editing scope</h2>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      This screen now focuses only on visitor profile data and robot assignment so the
+                      edit flow stays lightweight for admin staff.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" value={form.lastName} onChange={(event) => setField("lastName", event.target.value)} required />
+              <div className="card-elevated p-5">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl bg-sky-100 p-3 text-sky-700">
+                    <Cpu className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">Credential handling</h2>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      Passwords are intentionally excluded from visitor editing here. That keeps routine
+                      profile maintenance separate from credential administration.
+                    </p>
+                  </div>
+                </div>
               </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} required />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" value={form.phone} onChange={(event) => setField("phone", event.target.value)} required />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="robotId">Robot ID</Label>
-                <Input id="robotId" value={form.robotId} onChange={(event) => setField("robotId", event.target.value)} />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="password">New Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={form.password}
-                  onChange={(event) => setField("password", event.target.value)}
-                  placeholder="Leave empty to keep the current password"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <Button type="submit" disabled={saving}>
-                  {saving ? "Saving changes..." : "Save Changes"}
-                </Button>
-              </div>
-            </form>
+            </aside>
           </div>
         )}
       </div>

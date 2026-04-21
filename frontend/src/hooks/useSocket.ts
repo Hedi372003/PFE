@@ -21,7 +21,6 @@ export function useSocket() {
     unreadCount: snapshot.notifications.filter((notification) => !notification.read).length,
     markAsRead: (id: string) => websocketService.markAsRead(id),
     markAllAsRead: () => websocketService.markAllAsRead(),
-    pushNotification: websocketService.pushNotification.bind(websocketService),
     sendSocketMessage: websocketService.send.bind(websocketService),
   };
 }

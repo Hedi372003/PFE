@@ -65,7 +65,6 @@ const Requests: React.FC = () => {
           lastName: request.lastName,
           email: request.email,
           phone: request.phone,
-          password: request.password || "",
         },
       },
     });

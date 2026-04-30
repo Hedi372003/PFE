@@ -52,7 +52,6 @@ function readStorage<T>(key: string, fallback: T): T {
     if (!rawValue) {
       return fallback;
     }
-
     return JSON.parse(rawValue) as T;
   } catch {
     return fallback;
@@ -75,8 +74,9 @@ function normalizeUserName(record: Partial<UserRecord>): Pick<UserRecord, "name"
   };
 }
 
+// ✅ baseURL = "/api" — les chemins ne répètent plus /api
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "",
+  baseURL: "/api",
   headers: {
     "Content-Type": "application/json",
   },
@@ -84,11 +84,9 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(SESSION_TOKEN_KEY);
-
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
   return config;
 });
 
@@ -97,22 +95,20 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     const apiMessage = (error.response?.data as ApiErrorResponse | undefined)?.message;
     return apiMessage || fallback;
   }
-
   if (error instanceof Error && error.message) {
     return error.message;
   }
-
   return fallback;
 }
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    const { data } = await api.post<AuthResponse>("/api/auth/login", credentials);
+    const { data } = await api.post<AuthResponse>("/auth/login", credentials);
     return data;
   },
 
   async getCurrentUser(): Promise<AuthUser> {
-    const { data } = await api.get<AuthUser>("/api/auth/me");
+    const { data } = await api.get<AuthUser>("/auth/me");
     return {
       ...data,
       id: data.id || data._id || "",
@@ -127,11 +123,9 @@ export const authService = {
 
   getStoredUser(): AuthUser | null {
     const user = readStorage<AuthUser | null>(SESSION_USER_KEY, null);
-
     if (!user) {
       return null;
     }
-
     return {
       ...user,
       id: user.id || user._id || "",
@@ -157,7 +151,7 @@ export const authService = {
 
 export const userService = {
   async list(): Promise<UserRecord[]> {
-    const { data } = await api.get<UserRecord[]>("/api/users");
+    const { data } = await api.get<UserRecord[]>("/users");
     return data.map((user) => {
       const normalized = normalizeUserName(user);
       return {
@@ -171,9 +165,8 @@ export const userService = {
   },
 
   async getById(id: string): Promise<UserRecord> {
-    const { data } = await api.get<UserRecord>(`/api/users/${id}`);
+    const { data } = await api.get<UserRecord>(`/users/${id}`);
     const normalized = normalizeUserName(data);
-
     return {
       ...data,
       ...normalized,
@@ -184,27 +177,26 @@ export const userService = {
   },
 
   async create(payload: UserDraft): Promise<UserRecord> {
-    const { data } = await api.post<UserRecord>("/api/users", {
+    const { data } = await api.post<UserRecord>("/users", {
       ...payload,
       robotId: payload.robotId.trim() || null,
     });
-
     return data;
   },
 
   async update(id: string, payload: UserUpdateInput): Promise<UserRecord> {
-    const { data } = await api.put<UserRecord>(`/api/users/${id}`, payload);
+    const { data } = await api.put<UserRecord>(`/users/${id}`, payload);
     return data;
   },
 
   async remove(id: string): Promise<void> {
-    await api.delete(`/api/users/${id}`);
+    await api.delete(`/users/${id}`);
   },
 };
 
 export const requestService = {
   async listPending(): Promise<VisitorRequest[]> {
-    const { data } = await api.get<VisitorRequest[]>("/api/requests");
+    const { data } = await api.get<VisitorRequest[]>("/requests");
     return data.map((request) => ({
       ...request,
       message: request.message || "No visit description supplied.",
@@ -212,24 +204,24 @@ export const requestService = {
   },
 
   async create(payload: VisitorRequestDraft): Promise<VisitorRequest> {
-    const { data } = await api.post<VisitorRequest>("/api/requests", payload);
+    const { data } = await api.post<VisitorRequest>("/requests", payload);
     return data;
   },
 
   async approve(id: string): Promise<VisitorRequest> {
-    const { data } = await api.put<{ request: VisitorRequest }>(`/api/requests/${id}/approve`);
+    const { data } = await api.put<{ request: VisitorRequest }>(`/requests/${id}/approve`);
     return data.request;
   },
 
   async reject(id: string): Promise<VisitorRequest> {
-    const { data } = await api.put<VisitorRequest>(`/api/requests/${id}/reject`);
+    const { data } = await api.put<VisitorRequest>(`/requests/${id}/reject`);
     return data;
   },
 };
 
 export const robotService = {
   async list(): Promise<RobotRecord[]> {
-    const { data } = await api.get<RobotRecord[]>("/api/robots");
+    const { data } = await api.get<RobotRecord[]>("/robots");
     return data.map((robot) => ({
       ...robot,
       id: robot.id || robot._id || "",
@@ -239,29 +231,28 @@ export const robotService = {
   },
 
   async create(payload: RobotDraft): Promise<RobotRecord> {
-    const { data } = await api.post<RobotRecord>("/api/robots", payload);
+    const { data } = await api.post<RobotRecord>("/robots", payload);
     return data;
   },
 
   async update(id: string, payload: Partial<RobotDraft>): Promise<RobotRecord> {
-    const { data } = await api.put<RobotRecord>(`/api/robots/${id}`, payload);
+    const { data } = await api.put<RobotRecord>(`/robots/${id}`, payload);
     return data;
   },
 
   async remove(id: string): Promise<void> {
-    await api.delete(`/api/robots/${id}`);
+    await api.delete(`/robots/${id}`);
   },
 };
 
 export const notificationService = {
   async list(params?: { limit?: number; unreadOnly?: boolean }): Promise<NotificationItem[]> {
-    const { data } = await api.get<NotificationItem[]>("/api/notifications", {
+    const { data } = await api.get<NotificationItem[]>("/notifications", {
       params: {
         ...(params?.limit ? { limit: params.limit } : {}),
         ...(params?.unreadOnly !== undefined ? { unreadOnly: params.unreadOnly } : {}),
       },
     });
-
     return data.map((notification) => ({
       ...notification,
       read: Boolean(notification.read),
@@ -270,7 +261,7 @@ export const notificationService = {
   },
 
   async markAsRead(id: string): Promise<NotificationItem> {
-    const { data } = await api.post<NotificationItem>(`/api/notifications/${id}/read`);
+    const { data } = await api.post<NotificationItem>(`/notifications/${id}/read`);
     return {
       ...data,
       read: Boolean(data.read),
@@ -279,7 +270,7 @@ export const notificationService = {
   },
 
   async markAllAsRead(): Promise<{ updatedCount: number }> {
-    const { data } = await api.post<{ updatedCount: number }>("/api/notifications/read-all");
+    const { data } = await api.post<{ updatedCount: number }>("/notifications/read-all");
     return data;
   },
 };
@@ -294,7 +285,6 @@ export const companyService = {
       ...payload,
       updatedAt: new Date().toISOString(),
     };
-
     writeStorage(COMPANY_CONTENT_KEY, nextValue);
     return nextValue;
   },
@@ -313,7 +303,6 @@ export const logService = {
       timestamp: entry.timestamp || new Date().toISOString(),
       ...entry,
     };
-
     const logs = this.list();
     const nextLogs = [logEntry, ...logs].slice(0, 200);
     writeStorage(ACTIVITY_LOG_KEY, nextLogs);

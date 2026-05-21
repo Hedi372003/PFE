@@ -1,3 +1,6 @@
+// ==============================
+// IMPORTS
+// ==============================
 import { MonitorPlay, Radio, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
@@ -8,27 +11,60 @@ import { Button } from "@/components/ui/button";
 
 import type { RobotCommand } from "@/types/robot";
 
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Circle,
+} from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 
 
-const SOCKET_URL = "http://10.138.140.180:5001";
+// ==============================
+// CONFIG
+// ==============================
+const SOCKET_URL = "http://10.68.33.180:5001";
 const ROOM_ID = "robot-1";
 
+
+// ==============================
+// COMPONENT
+// ==============================
 const RobotControl: React.FC = () => {
+  
+  // ==========================
+  // REFS
+  // ==========================
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
 
+  // ==========================
+  // STATE
+  // ==========================
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [viewerState, setViewerState] = useState("idle");
   const [error, setError] = useState("");
+  const [robotPosition, setRobotPosition] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
+
+  // ==========================
+  // VIDEO STREAM
+  // ==========================
   useEffect(() => {
     if (videoRef.current && remoteStream) {
       videoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
 
-  // ================= STOP =================
+
+  // ==========================
+  // STOP VIEWER
+  // ==========================
   const stopViewer = () => {
     console.log("🛑 stop viewer");
 
@@ -42,7 +78,10 @@ const RobotControl: React.FC = () => {
     setViewerState("idle");
   };
 
-  // ================= START =================
+
+  // ==========================
+  // START VIEWER
+  // ==========================
   const startViewer = async () => {
     if (viewerState !== "idle") return;
 
@@ -54,18 +93,23 @@ const RobotControl: React.FC = () => {
     setError("");
 
     try {
+      // SOCKET
       const socket = io(SOCKET_URL, {
         transports: ["websocket"],
       });
 
       socketRef.current = socket;
 
+      // WEBRTC
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       });
 
       pcRef.current = pc;
 
+      // ======================
+      // CONNECTION STATE
+      // ======================
       pc.onconnectionstatechange = () => {
         console.log("🟡 PC state:", pc.connectionState);
         if (pc.connectionState === "connected") {
@@ -73,6 +117,9 @@ const RobotControl: React.FC = () => {
         }
       };
 
+      // ======================
+      // STREAM
+      // ======================
       pc.ontrack = (event) => {
         console.log("🎥 STREAM REÇU");
         setRemoteStream(event.streams[0]);
@@ -82,6 +129,9 @@ const RobotControl: React.FC = () => {
       pc.addTransceiver("video", { direction: "recvonly" });
       pc.addTransceiver("audio", { direction: "recvonly" });
 
+      // ======================
+      // ICE
+      // ======================
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           socket.emit("candidate", {
@@ -91,6 +141,9 @@ const RobotControl: React.FC = () => {
         }
       };
 
+      // ======================
+      // SOCKET CONNECT
+      // ======================
       socket.on("connect", async () => {
         console.log("✅ Socket connecté:", socket.id);
 
@@ -105,11 +158,17 @@ const RobotControl: React.FC = () => {
         });
       });
 
+      // ======================
+      // ANSWER
+      // ======================
       socket.on("answer", async (answer) => {
         console.log("📩 Answer reçu");
         await pc.setRemoteDescription(answer);
       });
 
+      // ======================
+      // ICE RECEIVED
+      // ======================
       socket.on("candidate", async (candidate) => {
         try {
           await pc.addIceCandidate(candidate);
@@ -118,12 +177,30 @@ const RobotControl: React.FC = () => {
         }
       });
 
+      // ======================
+      // 📍 POSITION ROBOT
+      // ======================
+      socket.on("position", (data) => {
+        console.log("📍 Position reçue:", data);
+
+        setRobotPosition({
+          lat: data.lat,
+          lng: data.lng,
+        });
+      });
+
+      // ======================
+      // ERROR
+      // ======================
       socket.on("connect_error", (err) => {
         console.error("❌ Socket error:", err.message);
         setError(err.message);
         setViewerState("error");
       });
 
+      // ======================
+      // TIMEOUT
+      // ======================
       setTimeout(() => {
         if (pc.connectionState !== "connected") {
           console.log("⛔ Timeout");
@@ -140,7 +217,10 @@ const RobotControl: React.FC = () => {
     }
   };
 
-  // ================= COMMAND =================
+
+  // ==========================
+  // COMMANDS
+  // ==========================
   const handleCommand = (command: RobotCommand) => {
     console.log("🎮 Command:", command);
 
@@ -148,25 +228,32 @@ const RobotControl: React.FC = () => {
 
     socketRef.current.emit("command", {
       roomId: ROOM_ID,
-      command: command,
+      command,
     });
   };
 
+
+  // ==========================
+  // UI
+  // ==========================
   return (
     <AppLayout>
       <div className="mx-auto max-w-6xl space-y-6">
 
+        {/* HEADER */}
         <section className="card-elevated p-6">
           <h1 className="text-2xl">Robot Viewer</h1>
           <p>Status: {viewerState}</p>
         </section>
 
+        {/* ERROR */}
         {error && (
           <div className="bg-red-100 text-red-600 p-3">
             {error}
           </div>
         )}
 
+        {/* VIDEO */}
         <section className="card-elevated">
           {!remoteStream && (
             <div className="h-[360px] flex items-center justify-center text-gray-400">
@@ -202,7 +289,43 @@ const RobotControl: React.FC = () => {
           </div>
         </section>
 
+        {/* CONTROL */}
         <ControlPad onCommand={handleCommand} disabled={!remoteStream} />
+
+        {/* MAP */}
+        <section className="card-elevated p-6">
+          <h2 className="text-xl mb-2">Robot Position</h2>
+
+          {!robotPosition ? (
+            <div className="text-gray-400">
+              Position indisponible...
+            </div>
+          ) : (
+            <MapContainer
+              center={[robotPosition.lat, robotPosition.lng]}
+              zoom={15}
+              style={{ height: "300px", width: "100%" }}
+            >
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+              {/* MARKER */}
+              <Marker position={[robotPosition.lat, robotPosition.lng]}>
+                <Popup>Robot ici 📍</Popup>
+              </Marker>
+
+              {/* CERCLE */}
+              <Circle
+                center={[robotPosition.lat, robotPosition.lng]}
+                radius={500}
+                pathOptions={{
+                  color: "blue",
+                  fillColor: "blue",
+                  fillOpacity: 0.2,
+                }}
+              />
+            </MapContainer>
+          )}
+        </section>
 
       </div>
     </AppLayout>

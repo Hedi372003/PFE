@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Plus, Trash2, Wrench } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -178,6 +179,7 @@ const Robots: React.FC = () => {
           ) : (
             robots.map((robot) => {
               const telemetry = deriveRobotTelemetry(robot);
+              const canOpenCall = robot.status === "online";
 
               return (
                 <div key={robot.id} className="card-elevated p-6">
@@ -195,9 +197,6 @@ const Robots: React.FC = () => {
 
                       <div className="flex flex-wrap gap-3">
                         <RobotStatusBadge status={robot.status} />
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                          Battery {telemetry.batteryLevel}%
-                        </span>
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                           {telemetry.networkQuality}
                         </span>
@@ -230,11 +229,18 @@ const Robots: React.FC = () => {
                       <Button
                         variant="outline"
                         className="gap-2"
+                        disabled={!canOpenCall}
                         onClick={() => navigate("/robot-control", { state: { robotId: robot.id } })}
                       >
                         <Wrench className="h-4 w-4" />
-                        Open Control
+                        {canOpenCall ? "Open Control" : "Call Unavailable"}
                       </Button>
+
+                      {!canOpenCall ? (
+                        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                          Calls are available only when this robot is online.
+                        </p>
+                      ) : null}
 
                       <Button
                         variant="outline"

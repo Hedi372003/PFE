@@ -45,15 +45,15 @@ exports.createRequest = async (req, res) => {
         email: String(email).trim().toLowerCase(),
         phone: String(phone).trim(),
         message: normalizedMessage,
-        status: "pending",
+        status: "approved",
       },
     });
 
     await notificationService.safeCreateNotification({
-      title: "New visitor request",
-      body: `${request.firstName} ${request.lastName} submitted a new telepresence access request.`,
+      title: "Visitor request auto-approved",
+      body: `${request.firstName} ${request.lastName} submitted a telepresence access request and it was approved automatically.`,
       kind: "visitor",
-      priority: "warning",
+      priority: "success",
       targetRole: "admin",
       metadata: {
         requestId: request.id,
@@ -76,6 +76,13 @@ exports.approveRequest = async (req, res) => {
 
     if (!request) {
       return res.status(404).json({ message: "Request not found" });
+    }
+
+    if (request.status === "approved") {
+      return res.status(200).json({
+        message: "Request already approved",
+        request: mapRequest(request),
+      });
     }
 
     if (request.status !== "pending") {

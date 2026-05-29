@@ -15,7 +15,7 @@ import Requests from "@/pages/Requests";
 import RobotControl from "@/pages/RobotControl";
 import Robots from "@/pages/Robots";
 import Settings from "@/pages/Settings";
-import UsersPage from "@/pages/UsersPage";
+import UsersPage from "@/pages/Visitors";
 import type { AuthUser } from "@/types/auth";
 
 function ProtectedRoute({

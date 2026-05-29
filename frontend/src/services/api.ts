@@ -24,6 +24,12 @@ interface ApiErrorResponse {
   message?: string;
 }
 
+export interface CommunicationStats {
+  calls: number;
+  conversations: number;
+  requests: number;
+}
+
 const SESSION_TOKEN_KEY = "token";
 const SESSION_USER_KEY = "user";
 const COMPANY_CONTENT_KEY = "telebot.company-content";
@@ -215,6 +221,15 @@ export const requestService = {
 
   async reject(id: string): Promise<VisitorRequest> {
     const { data } = await api.put<VisitorRequest>(`/requests/${id}/reject`);
+    return data;
+  },
+};
+
+export const dashboardService = {
+  async getCommunicationStats(period: string): Promise<CommunicationStats> {
+    const { data } = await api.get<CommunicationStats>("/dashboard/communication-stats", {
+      params: { period },
+    });
     return data;
   },
 };

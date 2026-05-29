@@ -179,41 +179,86 @@ const Logs: React.FC = () => {
           </div>
         </section>
 
-        <section className="space-y-4">
-          {loading ? (
-            <div className="card-elevated p-8 text-sm text-muted-foreground">Loading activity history...</div>
-          ) : filteredLogs.length === 0 ? (
-            <div className="card-elevated p-8 text-sm text-muted-foreground">
-              No log entries match the current filter.
-            </div>
-          ) : (
-            filteredLogs.map((entry) => (
-              <div key={entry.id} className="card-elevated p-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-lg font-semibold text-foreground">{entry.title}</h2>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${severityClasses[entry.severity]}`}>
-                        {entry.severity}
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize text-slate-700">
-                        {entry.category}
-                      </span>
-                    </div>
+        <section className="card-elevated overflow-hidden">
+  {loading ? (
+    <div className="p-8 text-sm text-muted-foreground">
+      Loading activity history...
+    </div>
+  ) : filteredLogs.length === 0 ? (
+    <div className="p-8 text-sm text-muted-foreground">
+      No log entries match the current filter.
+    </div>
+  ) : (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead className="bg-slate-100">
+          <tr>
+            <th className="px-4 py-3 text-left text-sm font-semibold">
+              Title
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold">
+              Category
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold">
+              Severity
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold">
+              Actor
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold">
+              Description
+            </th>
+            <th className="px-4 py-3 text-left text-sm font-semibold">
+              Date
+            </th>
+          </tr>
+        </thead>
 
-                    <p className="text-sm leading-6 text-muted-foreground">{entry.description}</p>
-                    <p className="text-sm text-muted-foreground">Actor: {entry.actor}</p>
-                  </div>
+        <tbody>
+          {filteredLogs.map((entry) => (
+            <tr
+              key={entry.id}
+              className="border-t border-slate-200 hover:bg-slate-50 transition"
+            >
+              <td className="px-4 py-4 font-medium text-foreground">
+                {entry.title}
+              </td>
 
-                  <div className="shrink-0 rounded-2xl border border-border/70 bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
-                    <p>{formatDateTime(entry.timestamp)}</p>
-                    <p className="mt-1">{formatRelativeTime(entry.timestamp)}</p>
-                  </div>
+              <td className="px-4 py-4">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize text-slate-700">
+                  {entry.category}
+                </span>
+              </td>
+
+              <td className="px-4 py-4">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${severityClasses[entry.severity]}`}
+                >
+                  {entry.severity}
+                </span>
+              </td>
+
+              <td className="px-4 py-4 text-sm text-muted-foreground">
+                {entry.actor}
+              </td>
+
+              <td className="px-4 py-4 text-sm text-muted-foreground max-w-md">
+                {entry.description}
+              </td>
+
+              <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap">
+                <div>{formatDateTime(entry.timestamp)}</div>
+                <div className="text-xs">
+                  {formatRelativeTime(entry.timestamp)}
                 </div>
-              </div>
-            ))
-          )}
-        </section>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</section>
       </div>
     </AppLayout>
   );

@@ -81,7 +81,7 @@ const Home: React.FC = () => {
 
     try {
       await requestService.create(reserveForm);
-      setReserveToast("Request sent successfully.");
+      setReserveToast("Request submitted and approved automatically.");
       window.setTimeout(() => setReserveToast(""), 2500);
       setReserveForm(initialReserveForm);
       closeReserveModal();
@@ -234,8 +234,8 @@ const Home: React.FC = () => {
                 <h2 className="text-xl font-bold text-foreground">Request a Visit</h2>
               </div>
               <p className="mb-6 text-sm text-muted-foreground">
-                Fill out this form so the administration team can review your request, schedule the
-                visit, and prepare access without asking you to create credentials up front.
+                Fill out this form to register your visit request. It will be approved automatically
+                and shared with the administration workspace.
               </p>
 
               {reserveError ? (
@@ -289,8 +289,8 @@ const Home: React.FC = () => {
                 </div>
 
                 <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
-                  Access details are prepared by the administration team after approval. Only your
-                  contact information and visit purpose are needed here.
+                  Your request is accepted automatically. Only your contact information and visit
+                  purpose are needed here.
                 </div>
 
                 <div className="space-y-1.5">

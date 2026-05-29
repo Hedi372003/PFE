@@ -1,7 +1,6 @@
 import { Mic, MicOff, Phone, PhoneCall, Video, VideoOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-
 import { ChatPanel } from "@/components/communication/ChatPanel";
 import { CallViewport } from "@/components/communication/CallViewport";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -12,6 +11,8 @@ import { getApiErrorMessage, logService } from "@/services/api";
 import { startLocalPreview, stopMediaStream } from "@/services/webrtc";
 import type { CallMode, CallState, ChatMessage } from "@/types/communication";
 import type { VisitorRequest } from "@/types/request";
+
+import { useRobotCall } from "@/hooks/useRobotCall";
 
 interface CommunicationLocationState {
   visitor?: VisitorRequest;
@@ -35,76 +36,70 @@ const Communication: React.FC = () => {
   const [callMode, setCallMode] = useState<CallMode>(state?.mode || "video");
   const [callState, setCallState] = useState<CallState>("idle");
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [localMuted, setLocalMuted] = useState(false);
   const [videoEnabled, setVideoEnabled] = useState(callMode === "video");
   const [error, setError] = useState("");
 
-  const visitorLabel = useMemo(() => {
-    if (!state?.visitor) {
-      return "Visitor not connected";
-    }
+  // === REAL ROBOT CALL INTEGRATION ===
+  const { remoteStream, callState: robotCallState, error: robotError, startCall, endCall } = useRobotCall();
 
+  const visitorLabel = useMemo(() => {
+    if (!state?.visitor) return "Visitor not connected";
     return `${state.visitor.firstName} ${state.visitor.lastName}`;
   }, [state?.visitor]);
 
   useEffect(() => {
     return () => {
       stopMediaStream(localStream);
-      stopMediaStream(remoteStream);
     };
-  }, [localStream, remoteStream]);
+  }, [localStream]);
 
   const appendMessage = (message: ChatMessage) => {
     setMessages((previous) => [...previous, message]);
   };
 
+  // Updated startSession - Now starts real call to robot
   const startSession = async (mode: CallMode) => {
     setCallMode(mode);
     setVideoEnabled(mode === "video");
     setError("");
     setCallState("connecting");
-    stopMediaStream(localStream);
 
     try {
+      // Start real WebRTC call to robot
+      await startCall();
+
+      // Optional: local preview for operator
       const stream = await startLocalPreview({ audio: true, video: mode === "video" });
       setLocalStream(stream);
+
       setCallState("live");
 
       appendMessage({
         id: createId("chat"),
         sender: "system",
-        message: `${mode === "video" ? "Video" : "Audio"} session started for ${visitorLabel}.`,
+        message: `Real ${mode === "video" ? "Video" : "Audio"} session started with robot for ${visitorLabel}.`,
         timestamp: new Date().toISOString(),
       });
-
-      window.setTimeout(() => {
-        appendMessage({
-          id: createId("chat"),
-          sender: "visitor",
-          message: "Hello, I am ready for the remote visit. Can you guide me through the next step?",
-          timestamp: new Date().toISOString(),
-        });
-      }, 1200);
 
       logService.record({
         category: "communication",
         severity: "success",
         actor: "Operator",
-        title: `${mode === "video" ? "Video" : "Audio"} call started`,
+        title: `Real ${mode} call started`,
         description: `Communication session opened for ${visitorLabel}.`,
       });
     } catch (sessionError) {
       setCallState("error");
-      setError(getApiErrorMessage(sessionError, "Unable to access the microphone or camera."));
+      setError(getApiErrorMessage(sessionError, "Failed to start call with robot."));
     }
   };
 
   const endSession = () => {
+    endCall();                    // Real robot call end
     stopMediaStream(localStream);
     setLocalStream(null);
-    setRemoteStream(null);
     setCallState("ended");
     setLocalMuted(false);
     setVideoEnabled(false);
@@ -148,15 +143,6 @@ const Communication: React.FC = () => {
       message,
       timestamp: new Date().toISOString(),
     });
-
-    window.setTimeout(() => {
-      appendMessage({
-        id: createId("chat"),
-        sender: "visitor",
-        message: "Received. Thank you, I am following the instructions.",
-        timestamp: new Date().toISOString(),
-      });
-    }, 1000);
   };
 
   return (
@@ -171,7 +157,6 @@ const Communication: React.FC = () => {
                 experience smooth from one operator workspace.
               </p>
             </div>
-
             <div className="rounded-2xl border border-border/70 bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">Socket status</p>
               <p className="mt-1 capitalize">{status}</p>
@@ -179,22 +164,21 @@ const Communication: React.FC = () => {
           </div>
         </section>
 
-        {error ? (
+        {(error || robotError) && (
           <div className="rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-            {error}
+            {error || robotError}
           </div>
-        ) : null}
+        )}
 
         <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
           <CallViewport
             localStream={localStream}
-            remoteStream={remoteStream}
+            remoteStream={remoteStream}           // ← Now shows robot camera
             callMode={callMode}
             localMuted={localMuted}
             videoEnabled={videoEnabled}
             remoteLabel={visitorLabel}
           />
-
           <div className="card-elevated space-y-5 p-6">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Session Controls</h2>
@@ -204,15 +188,14 @@ const Communication: React.FC = () => {
                   : "Open a session first, then coordinate the visitor experience."}
               </p>
             </div>
-
             <div className="grid gap-3">
               <Button className="gap-2" onClick={() => void startSession("video")}>
                 <Video className="h-4 w-4" />
-                Start Video Call
+                Start Video Call (Robot)
               </Button>
               <Button variant="outline" className="gap-2" onClick={() => void startSession("audio")}>
                 <PhoneCall className="h-4 w-4" />
-                Start Audio Call
+                Start Audio Call (Robot)
               </Button>
               <Button variant="outline" className="gap-2" onClick={toggleMute} disabled={!localStream}>
                 {localMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -227,19 +210,10 @@ const Communication: React.FC = () => {
                 {videoEnabled ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
                 {videoEnabled ? "Disable Camera" : "Enable Camera"}
               </Button>
-              <Button variant="destructive" className="gap-2" onClick={endSession} disabled={!localStream}>
+              <Button variant="destructive" className="gap-2" onClick={endSession} disabled={callState !== "live"}>
                 <Phone className="h-4 w-4" />
                 End Session
               </Button>
-            </div>
-
-            <div className="rounded-2xl border border-border/70 bg-slate-50 p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Call state</p>
-              <p className="mt-1 capitalize">{callState}</p>
-              <p className="mt-3">
-                The WebRTC service is ready for real signaling integration. Until a dedicated signaling
-                backend is connected, the page offers local preview, chat, and operator workflow scaffolding.
-              </p>
             </div>
           </div>
         </section>
@@ -262,7 +236,6 @@ const Communication: React.FC = () => {
               </div>
             </div>
           </div>
-
           <ChatPanel messages={messages} onSendMessage={handleSendMessage} />
         </section>
       </div>

@@ -8,6 +8,7 @@ const requestRoutes = require("./routes/request.routes");
 const cmsRoutes = require("./routes/cms.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const callRoutes = require("./routes/call.routes");
+const dashboardRoutes = require("./routes/dashboard.routes");
 
 const app = express();
 
@@ -50,5 +51,6 @@ app.use("/api/requests", requestRoutes);
 app.use("/api/cms", cmsRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/calls", callRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 module.exports = app;

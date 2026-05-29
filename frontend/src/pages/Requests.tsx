@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MessageSquareText, UserCheck, UserX, Waypoints } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -8,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/utils";
 import { getApiErrorMessage, logService, requestService } from "@/services/api";
 import type { VisitorRequest } from "@/types/request";
+
+const requestChartColors = ["#f59e0b", "#e11d48", "#10b981"];
 
 const Requests: React.FC = () => {
   const navigate = useNavigate();
@@ -47,6 +50,29 @@ const Requests: React.FC = () => {
     requests.length === 0
       ? "No pending visitor requests."
       : `${requests.length} pending visitor request${requests.length > 1 ? "s" : ""} waiting for action.`;
+
+  const requestChartData = useMemo(
+    () => [
+      {
+        name: "Pending Queue",
+        value: requests.length,
+        description: "Requests currently stored as pending.",
+      },
+      {
+        name: "Needs Attention",
+        value: staleCount,
+        description: "Pending requests older than 12 hours.",
+      },
+      {
+        name: "Call Ready",
+        value: requests.length,
+        description: "Pending requests ready to open a call.",
+      },
+    ],
+    [requests.length, staleCount],
+  );
+
+  const chartTotal = requestChartData.reduce((total, item) => total + item.value, 0);
 
   const handleApprove = (request: VisitorRequest) => {
     logService.record({
@@ -98,7 +124,7 @@ const Requests: React.FC = () => {
       description: `A communication session was opened for ${request.firstName} ${request.lastName}.`,
     });
 
-    navigate("/communication", {
+    navigate("/robot-control", {
       state: {
         visitor: request,
         mode: "video",
@@ -145,6 +171,67 @@ const Requests: React.FC = () => {
             icon={MessageSquareText}
             tone="success"
           />
+        </section>
+
+        <section className="card-elevated p-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-center">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Request Status Overview</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Database-backed view of pending requests, attention priority, and call readiness.
+              </p>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                {requestChartData.map((item, index) => (
+                  <div key={item.name} className="rounded-2xl border border-border/70 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-3 w-3 rounded-full"
+                        style={{ backgroundColor: requestChartColors[index] }}
+                      />
+                      <p className="text-sm font-semibold text-foreground">{item.name}</p>
+                    </div>
+                    <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
+                      {loading ? "..." : item.value}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative h-[280px]">
+              {loading ? (
+                <div className="flex h-full items-center justify-center rounded-3xl border border-dashed border-border text-sm text-muted-foreground">
+                  Loading chart data...
+                </div>
+              ) : chartTotal === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-slate-50 text-center">
+                  <p className="text-4xl font-semibold text-foreground">0</p>
+                  <p className="mt-2 text-sm text-muted-foreground">No request data to display.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={requestChartData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={68}
+                      outerRadius={104}
+                      paddingAngle={3}
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {requestChartData.map((item, index) => (
+                        <Cell key={item.name} fill={requestChartColors[index]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
         </section>
 
         <section className="space-y-4">

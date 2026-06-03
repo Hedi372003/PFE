@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MessageSquareText, UserCheck, UserX, Waypoints } from "lucide-react";
+import { MessageSquareText, PhoneCall, UserX, Waypoints } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -12,19 +12,80 @@ import type { VisitorRequest } from "@/types/request";
 
 const requestChartColors = ["#f59e0b", "#e11d48", "#10b981"];
 
+const ignoredConversationPatterns = [
+  /guided intake/i,
+  /technologies/i,
+  /project process/i,
+  /admin handoff/i,
+  /request details/i,
+  /smart request/i,
+  /admin notified/i,
+  /these fields follow/i,
+  /full chat transcript/i,
+  /contact admin/i,
+  /request sent/i,
+  /click/i,
+  /system/i,
+];
+
+function buildConversation(request: VisitorRequest) {
+  const lines = request.message
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !ignoredConversationPatterns.some((pattern) => pattern.test(line)));
+
+  const speakerLines = lines
+    .map((line, index) => {
+      const speakerMatch = line.match(/^(visitor|user|guest|bot|chatbot|assistant|agent)\s*[:\-]\s*(.*)$/i);
+      if (!speakerMatch && lines.length > 1) {
+        return null;
+      }
+
+      const speaker = speakerMatch?.[1]?.toLowerCase() || "visitor";
+      const text = (speakerMatch?.[2] || line).trim();
+      const isVisitor = ["visitor", "user", "guest"].includes(speaker);
+
+      if (!text || ignoredConversationPatterns.some((pattern) => pattern.test(text))) {
+        return null;
+      }
+
+      return {
+        id: `${request.id}-${index}`,
+        speaker: isVisitor ? "Visitor" : "Chatbot",
+        text,
+        isVisitor,
+      };
+    })
+    .filter((message): message is { id: string; speaker: string; text: string; isVisitor: boolean } => Boolean(message));
+
+  if (speakerLines.length > 0) {
+    return speakerLines;
+  }
+
+  const fallbackText = request.message.trim() || "No visit details supplied.";
+
+  return [
+    {
+      id: `${request.id}-fallback`,
+      speaker: "Visitor",
+      text: fallbackText,
+      isVisitor: true,
+    },
+  ];
+}
+
 const Requests: React.FC = () => {
   const navigate = useNavigate();
   const [requests, setRequests] = useState<VisitorRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
 
   const loadRequests = async () => {
     setLoading(true);
     setError("");
 
     try {
-      const data = await requestService.listPending();
+      const data = await requestService.listCallReady();
       setRequests(data);
     } catch (loadError) {
       setError(getApiErrorMessage(loadError, "Failed to load the request queue."));
@@ -37,9 +98,18 @@ const Requests: React.FC = () => {
     void loadRequests();
   }, []);
 
+  const pendingCount = useMemo(
+    () => requests.filter((request) => request.status === "pending").length,
+    [requests],
+  );
+
   const staleCount = useMemo(
     () =>
       requests.filter((request) => {
+        if (request.status !== "pending") {
+          return false;
+        }
+
         const createdAt = request.createdAt ? new Date(request.createdAt).getTime() : Date.now();
         return Date.now() - createdAt > 1000 * 60 * 60 * 12;
       }).length,
@@ -47,15 +117,15 @@ const Requests: React.FC = () => {
   );
 
   const queueSummary =
-    requests.length === 0
+    pendingCount === 0
       ? "No pending visitor requests."
-      : `${requests.length} pending visitor request${requests.length > 1 ? "s" : ""} waiting for action.`;
+      : `${pendingCount} pending visitor request${pendingCount > 1 ? "s" : ""} waiting for action.`;
 
   const requestChartData = useMemo(
     () => [
       {
         name: "Pending Queue",
-        value: requests.length,
+        value: pendingCount,
         description: "Requests currently stored as pending.",
       },
       {
@@ -69,58 +139,17 @@ const Requests: React.FC = () => {
         description: "Pending requests ready to open a call.",
       },
     ],
-    [requests.length, staleCount],
+    [pendingCount, requests.length, staleCount],
   );
 
   const chartTotal = requestChartData.reduce((total, item) => total + item.value, 0);
 
-  const handleApprove = (request: VisitorRequest) => {
-    logService.record({
-      category: "visit",
-      severity: "info",
-      actor: "Admin workflow",
-      title: "Visitor approval flow started",
-      description: `Preparing profile creation for ${request.firstName} ${request.lastName}.`,
-    });
-
-    navigate("/users/add", {
-      state: {
-        fromRequest: {
-          requestId: request.id,
-          firstName: request.firstName,
-          lastName: request.lastName,
-          email: request.email,
-          phone: request.phone,
-        },
-      },
-    });
-  };
-
-  const handleReject = async (request: VisitorRequest) => {
-    setActiveRequestId(request.id);
-    try {
-      await requestService.reject(request.id);
-      setRequests((previous) => previous.filter((item) => item.id !== request.id));
-      logService.record({
-        category: "visit",
-        severity: "warning",
-        actor: "Admin",
-        title: "Visitor request rejected",
-        description: `${request.firstName} ${request.lastName}'s request was rejected by the administration panel.`,
-      });
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError, "Failed to reject the visitor request."));
-    } finally {
-      setActiveRequestId(null);
-    }
-  };
-
-  const handleStartCall = (request: VisitorRequest) => {
+  const handleContactVisitor = (request: VisitorRequest) => {
     logService.record({
       category: "communication",
       severity: "info",
       actor: "Admin",
-      title: "Pre-approval call launched",
+      title: "Visitor contact launched",
       description: `A communication session was opened for ${request.firstName} ${request.lastName}.`,
     });
 
@@ -138,8 +167,7 @@ const Requests: React.FC = () => {
         <section className="card-elevated p-6">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Visitor Requests</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Approve visitor entries, reject invalid requests, or start a live call before the remote
-            telepresence experience begins.
+            Review visitor details and open a direct communication session when a follow-up is needed.
           </p>
         </section>
 
@@ -152,10 +180,10 @@ const Requests: React.FC = () => {
         <section className="grid gap-4 md:grid-cols-3">
           <MetricCard
             label="Pending Queue"
-            value={loading ? "..." : requests.length}
+            value={loading ? "..." : pendingCount}
             helper={queueSummary}
             icon={Waypoints}
-            tone={requests.length > 0 ? "warning" : "default"}
+            tone={pendingCount > 0 ? "warning" : "default"}
           />
           <MetricCard
             label="Needs Attention"
@@ -239,13 +267,16 @@ const Requests: React.FC = () => {
             <div className="card-elevated p-8 text-sm text-muted-foreground">Loading request queue...</div>
           ) : requests.length === 0 ? (
             <div className="card-elevated p-8 text-sm text-muted-foreground">
-              No pending requests. The visitor queue is clear for now.
+              No visitor requests are available for contact right now.
             </div>
           ) : (
-            requests.map((request) => (
+            requests.map((request) => {
+              const conversation = buildConversation(request);
+
+              return (
               <div key={request.id} className="card-elevated p-6">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="space-y-3">
+                  <div className="min-w-0 flex-1 space-y-5">
                     <div className="flex flex-wrap items-center gap-3">
                       <h2 className="text-xl font-semibold text-foreground">
                         {request.firstName} {request.lastName}
@@ -259,36 +290,60 @@ const Requests: React.FC = () => {
                       <p>{request.email}</p>
                       <p>{request.phone}</p>
                       <p>Submitted: {formatDateTime(request.createdAt)}</p>
-                      <p>Latest update: {formatDateTime(request.updatedAt || request.createdAt)}</p>
-                    </div>
+                        <p>Latest update: {formatDateTime(request.updatedAt || request.createdAt)}</p>
+                      </div>
 
-                    <div className="rounded-2xl border border-border/70 bg-slate-50 p-4 text-sm text-muted-foreground">
-                      {request.message}
-                    </div>
+                    <details className="rounded-3xl border border-border/70 bg-slate-50 p-4">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Visitor conversation</p>
+                          <p className="text-xs text-muted-foreground">
+                            Only visitor and chatbot messages are shown.
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                          Show {conversation.length} message{conversation.length > 1 ? "s" : ""}
+                        </span>
+                      </summary>
+
+                      <div className="mt-4 space-y-3 border-t border-border/70 pt-4">
+                        {conversation.map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex ${message.isVisitor ? "justify-end" : "justify-start"}`}
+                          >
+                            <div
+                              className={`max-w-[min(36rem,100%)] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                                message.isVisitor
+                                  ? "bg-slate-950 text-white"
+                                  : "border border-border/70 bg-white text-slate-700"
+                              }`}
+                            >
+                              <p
+                                className={`mb-1 text-xs font-semibold ${
+                                  message.isVisitor ? "text-slate-300" : "text-slate-500"
+                                }`}
+                              >
+                                {message.speaker}
+                              </p>
+                              <p>{message.text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   </div>
 
                   <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
-                    <Button className="gap-2" onClick={() => handleApprove(request)}>
-                      <UserCheck className="h-4 w-4" />
-                      Accept
-                    </Button>
-                    <Button variant="outline" className="gap-2" onClick={() => handleStartCall(request)}>
-                      <MessageSquareText className="h-4 w-4" />
-                      Start Call
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      className="gap-2"
-                      disabled={activeRequestId === request.id}
-                      onClick={() => void handleReject(request)}
-                    >
-                      <UserX className="h-4 w-4" />
-                      {activeRequestId === request.id ? "Rejecting..." : "Reject"}
+                    <Button className="gap-2" onClick={() => handleContactVisitor(request)}>
+                      <PhoneCall className="h-4 w-4" />
+                      Contact Visitor
                     </Button>
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </section>
       </div>

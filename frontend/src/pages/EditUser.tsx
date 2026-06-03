@@ -1,4 +1,4 @@
-import { ClipboardPen, Cpu, Save } from "lucide-react";
+import { ClipboardPen, Save, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -13,16 +13,13 @@ interface EditUserParams {
   id: string;
 }
 
-type EditUserForm = Required<Pick<UserUpdateInput, "firstName" | "lastName" | "email" | "phone">> & {
-  robotId: string;
-};
+type EditUserForm = Required<Pick<UserUpdateInput, "firstName" | "lastName" | "email" | "phone">>;
 
 const initialForm: EditUserForm = {
   firstName: "",
   lastName: "",
   email: "",
   phone: "",
-  robotId: "",
 };
 
 const EditUser: React.FC = () => {
@@ -57,7 +54,6 @@ const EditUser: React.FC = () => {
           lastName: user.lastName,
           email: user.email,
           phone: user.phone,
-          robotId: user.robotId || "",
         });
       } catch (loadError) {
         if (active) {
@@ -88,7 +84,6 @@ const EditUser: React.FC = () => {
         lastName: form.lastName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        robotId: form.robotId.trim() || null,
       });
 
       logService.record({
@@ -115,8 +110,8 @@ const EditUser: React.FC = () => {
             <div>
               <h1 className="text-3xl font-semibold tracking-tight text-foreground">Edit Visitor</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                Update visitor profile details, keep contact records accurate, and manage the robot
-                link without exposing access credentials in the admin form.
+                Update visitor identity and contact details without exposing access credentials in
+                the admin form.
               </p>
             </div>
 
@@ -141,7 +136,7 @@ const EditUser: React.FC = () => {
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold text-foreground">Visitor profile</h2>
                   <p className="text-sm text-muted-foreground">
-                    Keep the visitor record current so assignments, communication history, and routing
+                    Keep the visitor record current so communication history and follow-up workflows
                     remain accurate across the admin workspace.
                   </p>
                 </div>
@@ -189,26 +184,6 @@ const EditUser: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-border/70 bg-slate-50 p-5">
-                  <div className="space-y-1">
-                    <h3 className="text-base font-semibold text-foreground">Robot assignment</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Update the robot link if this visitor has moved to a different telepresence unit,
-                      or clear it to leave the visitor unassigned.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 space-y-2">
-                    <Label htmlFor="robotId">Robot ID</Label>
-                    <Input
-                      id="robotId"
-                      value={form.robotId}
-                      onChange={(event) => setField("robotId", event.target.value)}
-                      placeholder="Optional robot assignment"
-                    />
-                  </div>
-                </div>
-
                 <div className="flex flex-col-reverse gap-3 border-t border-border/70 pt-6 sm:flex-row sm:justify-end">
                   <Link to="/users">
                     <Button type="button" variant="outline" className="w-full sm:w-auto">
@@ -232,8 +207,8 @@ const EditUser: React.FC = () => {
                   <div>
                     <h2 className="text-base font-semibold text-foreground">Editing scope</h2>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      This screen now focuses only on visitor profile data and robot assignment so the
-                      edit flow stays lightweight for admin staff.
+                      This screen focuses only on visitor profile and contact data so the edit flow
+                      stays lightweight for admin staff.
                     </p>
                   </div>
                 </div>
@@ -242,7 +217,7 @@ const EditUser: React.FC = () => {
               <div className="card-elevated p-5">
                 <div className="flex items-start gap-3">
                   <div className="rounded-2xl bg-sky-100 p-3 text-sky-700">
-                    <Cpu className="h-5 w-5" />
+                    <ShieldCheck className="h-5 w-5" />
                   </div>
                   <div>
                     <h2 className="text-base font-semibold text-foreground">Credential handling</h2>

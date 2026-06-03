@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight, Pencil, Search, Trash2, UserPlus2, UserRoundX, UsersRound } from "lucide-react";
+import { ArrowRight, CalendarDays, MessageSquareText, Pencil, Search, Trash2, UserPlus2, UsersRound } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -14,7 +14,7 @@ import { formatDateTime } from "@/lib/utils";
 import { getApiErrorMessage, logService, userService } from "@/services/api";
 import type { UserRecord } from "@/types/user";
 
-type VisitorMetric = "approved" | "today" | "assigned" | "unassigned";
+type VisitorMetric = "added" | "today" | "week" | "contact";
 
 const visitorChartColors = ["#2563eb", "#10b981", "#7c3aed", "#f59e0b"];
 
@@ -79,17 +79,31 @@ const UsersPage: React.FC = () => {
     return new Date(visitor.createdAt).toDateString() === new Date().toDateString();
   };
 
+  const isCreatedThisWeek = (visitor: UserRecord) => {
+    if (!visitor.createdAt) {
+      return false;
+    }
+
+    const now = new Date();
+    const weekStart = new Date(now);
+    const day = weekStart.getDay() || 7;
+    weekStart.setDate(weekStart.getDate() - day + 1);
+    weekStart.setHours(0, 0, 0, 0);
+
+    return new Date(visitor.createdAt).getTime() >= weekStart.getTime();
+  };
+
   const metricVisitors = useMemo(() => {
     if (activeMetric === "today") {
       return visitors.filter(isCreatedToday);
     }
 
-    if (activeMetric === "assigned") {
-      return visitors.filter((visitor) => Boolean(visitor.robotId));
+    if (activeMetric === "week") {
+      return visitors.filter(isCreatedThisWeek);
     }
 
-    if (activeMetric === "unassigned") {
-      return visitors.filter((visitor) => !visitor.robotId);
+    if (activeMetric === "contact") {
+      return visitors.filter((visitor) => Boolean(visitor.email && visitor.phone));
     }
 
     return visitors;
@@ -120,74 +134,77 @@ const UsersPage: React.FC = () => {
     }).length;
   }, [visitors]);
 
-  const assignedCount = useMemo(
-    () => visitors.filter((visitor) => Boolean(visitor.robotId)).length,
+  const addedThisWeekCount = useMemo(
+    () => visitors.filter(isCreatedThisWeek).length,
     [visitors],
   );
 
-  const unassignedCount = Math.max(0, visitors.length - assignedCount);
+  const contactReadyCount = useMemo(
+    () => visitors.filter((visitor) => Boolean(visitor.email && visitor.phone)).length,
+    [visitors],
+  );
 
   const visitorChartData = useMemo(
     () => [
       {
-        name: "Approved Visitors",
+        name: "Added Visitors",
         value: visitors.length,
-        description: "Approved visitor profiles imported from the database.",
+        description: "Visitor profiles available in the database.",
       },
       {
-        name: "Created Today",
+        name: "Added Today",
         value: newTodayCount,
         description: "Visitor profiles created during the current day.",
       },
       {
-        name: "Robot Assigned",
-        value: assignedCount,
-        description: "Visitors already linked to a robot identity.",
+        name: "Added This Week",
+        value: addedThisWeekCount,
+        description: "Visitor profiles added since the start of this week.",
       },
       {
-        name: "Unassigned",
-        value: unassignedCount,
-        description: "Visitors still waiting for fleet assignment.",
+        name: "Contact Ready",
+        value: contactReadyCount,
+        description: "Visitors with email and phone available for follow-up.",
       },
     ],
-    [assignedCount, newTodayCount, unassignedCount, visitors.length],
+    [addedThisWeekCount, contactReadyCount, newTodayCount, visitors.length],
   );
 
   const visitorChartTotal = visitorChartData.reduce((total, item) => total + item.value, 0);
 
   const metricDetails = useMemo(() => {
     const countByMetric = {
-      approved: visitors.length,
+      added: visitors.length,
       today: newTodayCount,
-      assigned: assignedCount,
-      unassigned: unassignedCount,
+      week: addedThisWeekCount,
+      contact: contactReadyCount,
     };
 
     const details = {
-      approved: {
-        label: "Approved Visitors",
-        identifier: `VIS-APPROVED-${String(countByMetric.approved).padStart(3, "0")}`,
-        description: "All approved visitor profiles currently available.",
+      added: {
+        label: "Added Visitors",
+        identifier: `VIS-ADDED-${String(countByMetric.added).padStart(3, "0")}`,
+        description: "All visitor profiles currently available.",
       },
       today: {
-        label: "Created Today",
+        label: "Added Today",
         identifier: `VIS-TODAY-${new Date().toISOString().slice(0, 10)}-${String(countByMetric.today).padStart(3, "0")}`,
         description: "Visitor profiles created during the current day.",
       },
-      assigned: {
-        label: "Robot Assigned",
-        identifier: `VIS-ROBOT-ASSIGNED-${String(countByMetric.assigned).padStart(3, "0")}`,
-        description: "Visitors already linked to a robot identity.",
+      week: {
+        label: "Added This Week",
+        identifier: `VIS-WEEK-${String(countByMetric.week).padStart(3, "0")}`,
+        description: "Visitor profiles created since the start of this week.",
       },
-      unassigned: {
-        label: "Unassigned",
-        identifier: `VIS-UNASSIGNED-${String(countByMetric.unassigned).padStart(3, "0")}`,
-        description: "Visitors still waiting for a robot assignment.",
+      contact: {
+        label: "Contact Ready",
+        identifier: `VIS-CONTACT-${String(countByMetric.contact).padStart(3, "0")}`,
+        description: "Visitors with enough contact information for direct follow-up.",
       },
     };
 
     return activeMetric ? details[activeMetric] : null;
-  }, [activeMetric, assignedCount, newTodayCount, unassignedCount, visitors.length]);
+  }, [activeMetric, addedThisWeekCount, contactReadyCount, newTodayCount, visitors.length]);
 
   const handleDelete = async (visitor: UserRecord) => {
     setActiveVisitorId(visitor.id);
@@ -261,16 +278,16 @@ const UsersPage: React.FC = () => {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Approved Visitors"
+            label="Added Visitors"
             value={loading ? "..." : visitors.length}
             helper="Profiles currently available in visitor management."
             icon={UsersRound}
             tone="info"
-            active={activeMetric === "approved"}
-            onClick={() => setActiveMetric("approved")}
+            active={activeMetric === "added"}
+            onClick={() => setActiveMetric("added")}
           />
           <MetricCard
-            label="Created Today"
+            label="Added Today"
             value={loading ? "..." : newTodayCount}
             helper="New visitor profiles added during the current day."
             icon={UserPlus2}
@@ -279,22 +296,22 @@ const UsersPage: React.FC = () => {
             onClick={() => setActiveMetric("today")}
           />
           <MetricCard
-            label="Robot Assigned"
-            value={loading ? "..." : assignedCount}
-            helper="Visitors already linked to a robot identity."
-            icon={UsersRound}
+            label="Added This Week"
+            value={loading ? "..." : addedThisWeekCount}
+            helper="New visitor profiles added since Monday."
+            icon={CalendarDays}
             tone="violet"
-            active={activeMetric === "assigned"}
-            onClick={() => setActiveMetric("assigned")}
+            active={activeMetric === "week"}
+            onClick={() => setActiveMetric("week")}
           />
           <MetricCard
-            label="Unassigned"
-            value={loading ? "..." : unassignedCount}
-            helper="Visitors still waiting for fleet assignment."
-            icon={UserRoundX}
+            label="Contact Ready"
+            value={loading ? "..." : contactReadyCount}
+            helper="Visitors with email and phone ready for contact."
+            icon={MessageSquareText}
             tone="warning"
-            active={activeMetric === "unassigned"}
-            onClick={() => setActiveMetric("unassigned")}
+            active={activeMetric === "contact"}
+            onClick={() => setActiveMetric("contact")}
           />
         </section>
 
@@ -325,8 +342,7 @@ const UsersPage: React.FC = () => {
             <div>
               <h2 className="text-xl font-semibold text-foreground">Visitor Statistics Overview</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Database-backed summary of approved visitors, daily creations, robot assignments,
-                and unassigned profiles.
+                Database-backed summary of visitor growth and follow-up readiness.
               </p>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -413,7 +429,6 @@ const UsersPage: React.FC = () => {
                     <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
                       <p>{visitor.email}</p>
                       <p>{visitor.phone}</p>
-                      <p>Robot assignment: {visitor.robotId || "Unassigned"}</p>
                       <p>Updated: {formatDateTime(visitor.updatedAt || visitor.createdAt)}</p>
                     </div>
                   </div>

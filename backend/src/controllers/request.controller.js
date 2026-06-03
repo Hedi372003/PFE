@@ -1,3 +1,5 @@
+const { randomBytes } = require("crypto");
+const bcrypt = require("bcryptjs");
 const prisma = require("../config/prisma");
 const notificationService = require("../services/notification.service");
 
@@ -13,10 +15,53 @@ const mapRequest = (request) => ({
     updatedAt: request.updatedAt,
 });
 
+const generateManagedPassword = () => randomBytes(24).toString("hex");
+
+async function syncVisitorProfileFromRequest(request) {
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: request.email },
+      select: { id: true, role: true },
+    });
+
+    if (existingUser) {
+      if (existingUser.role !== "user") {
+        return;
+      }
+
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          firstName: request.firstName,
+          lastName: request.lastName,
+          phone: request.phone,
+        },
+      });
+      return;
+    }
+
+    await prisma.user.create({
+      data: {
+        firstName: request.firstName,
+        lastName: request.lastName,
+        email: request.email,
+        phone: request.phone,
+        password: await bcrypt.hash(generateManagedPassword(), 10),
+        role: "user",
+      },
+    });
+  } catch (error) {
+    console.error("syncVisitorProfileFromRequest error:", error);
+  }
+}
+
 exports.getPendingRequests = async (req, res) => {
   try {
+    const includeApproved = req.query.includeApproved === "true";
     const requests = await prisma.request.findMany({
-      where: { status: "pending" },
+      where: {
+        status: includeApproved ? { in: ["pending", "approved"] } : "pending",
+      },
       orderBy: { createdAt: "desc" },
     });
 
@@ -48,6 +93,8 @@ exports.createRequest = async (req, res) => {
         status: "approved",
       },
     });
+
+    await syncVisitorProfileFromRequest(request);
 
     await notificationService.safeCreateNotification({
       title: "Visitor request auto-approved",

@@ -209,6 +209,16 @@ export const requestService = {
     }));
   },
 
+  async listCallReady(): Promise<VisitorRequest[]> {
+    const { data } = await api.get<VisitorRequest[]>("/requests", {
+      params: { includeApproved: true },
+    });
+    return data.map((request) => ({
+      ...request,
+      message: request.message || "No visit description supplied.",
+    }));
+  },
+
   async create(payload: VisitorRequestDraft): Promise<VisitorRequest> {
     const { data } = await api.post<VisitorRequest>("/requests", payload);
     return data;

@@ -43,6 +43,51 @@ const parseNameFallback = (name) => {
 
 const generateManagedPassword = () => randomBytes(24).toString("hex");
 
+async function syncApprovedRequestsToVisitorProfiles() {
+  try {
+    const approvedRequests = await prisma.request.findMany({
+      where: { status: "approved" },
+      orderBy: { createdAt: "desc" },
+    });
+
+    for (const request of approvedRequests) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: request.email },
+        select: { id: true, role: true },
+      });
+
+      if (existingUser) {
+        if (existingUser.role !== "user") {
+          continue;
+        }
+
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            firstName: request.firstName,
+            lastName: request.lastName,
+            phone: request.phone,
+          },
+        });
+        continue;
+      }
+
+      await prisma.user.create({
+        data: {
+          firstName: request.firstName,
+          lastName: request.lastName,
+          email: request.email,
+          phone: request.phone,
+          password: await bcrypt.hash(generateManagedPassword(), 10),
+          role: "user",
+        },
+      });
+    }
+  } catch (error) {
+    console.error("syncApprovedRequestsToVisitorProfiles error:", error);
+  }
+}
+
 exports.createUser = async (req, res) => {
   try {
     const {
@@ -111,6 +156,8 @@ exports.createUser = async (req, res) => {
 
 exports.getUsers = async (req, res) => {
   try {
+    await syncApprovedRequestsToVisitorProfiles();
+
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       select: selectWithoutPassword,

@@ -98,7 +98,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 exit={{ opacity: 0, x: -6 }}
                 className="min-w-0"
               >
-                <p className="truncate text-lg font-semibold">TeleBot Admin</p>
+                <p className="truncate text-lg font-semibold">DOUDI</p>
                 <p className="truncate text-xs text-slate-400">Telepresence operations suite</p>
               </motion.div>
             ) : null}
